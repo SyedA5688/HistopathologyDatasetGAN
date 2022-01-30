@@ -1,0 +1,41 @@
+{
+  "average_latent": "",
+  "batch_size": 32768,
+  "category": "TMA",
+  "data_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/generated_datasets/TMA_1024_Arteriole2",
+  "deeplab_res": 1024,
+  "early_stopping_patience": 10,
+  "epochs": 50,
+  "experiment_desc": "Training with lower learning rate, much higher batch size, gaussian noise data augmentation, not kicking out any pixels",
+  "experiment_dir": "training-runs/0013-TMA_Arteriole_stylegan2_ada",
+  "featuremaps_dim": [1024, 1024, 6080],
+  "G_kwargs": {
+    "class_name": "networks.stylegan2_ada.Generator",
+    "z_dim": 512,
+    "w_dim": 512,
+    "mapping_kwargs": {
+      "num_layers": 2
+    },
+    "synthesis_kwargs": {
+      "channel_base": 32768,
+      "channel_max": 512,
+      "num_fp16_res": 4,
+      "conv_clamp": 256
+    }
+  },
+  "log_frequency": 30000,
+  "max_training": 24,
+  "model_num": 10,
+  "num_classes": 7,
+  "pixel_classifier_lr": 0.0001,
+  "pixel_feat_save_dir": "/data/syed/hdgan/TMA_1024_Arteriole2",
+  "resolution": 1024,
+  "stylegan_checkpoint": "/data/syed/stylegan2-ada-training/00000--mirror-auto4-Arteriole/network-snapshot-006000.pkl",
+  "stylegan_ver": "2_ADA",
+  "testing_data_number_class": 1,
+  "testing_path": "",
+  "truncation": 0.7,
+  "upsample_mode":"bilinear",
+  "val_fold_idx": 0
+}
+
