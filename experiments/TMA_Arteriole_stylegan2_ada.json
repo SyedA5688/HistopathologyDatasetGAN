@@ -5,9 +5,9 @@
   "data_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/generated_datasets/TMA_1024_Arteriole2",
   "deeplab_res": 1024,
   "early_stopping_patience": 10,
-  "epochs": 50,
-  "experiment_desc": "Training with lower learning rate, much higher batch size, gaussian noise data augmentation, not kicking out any pixels",
-  "experiment_dir": "training-runs/0013-TMA_Arteriole_stylegan2_ada",
+  "epochs": 10,
+  "experiment_desc": "New Arteriole annotations 1-31-2021, not using WeightedRandomSampler, 24 image training dataset, Adam optimizer, dropout percentage 0.3, learning rate 1e-4.",
+  "experiment_dir": "training-runs/0021-TMA_Arteriole_stylegan2_ada",
   "featuremaps_dim": [1024, 1024, 6080],
   "G_kwargs": {
     "class_name": "networks.stylegan2_ada.Generator",
@@ -23,7 +23,6 @@
       "conv_clamp": 256
     }
   },
-  "log_frequency": 30000,
   "max_training": 24,
   "model_num": 10,
   "num_classes": 7,

@@ -1,10 +1,10 @@
 import os
-import json
 import glob
 import numpy as np
 from PIL import Image
 
-from utils.data_util import tma_12_class
+# from utils.data_util import tma_12_class
+tma_12_class = ["Glomerulus", "Arteriole", "Artery", "TubuleDuct", "PTC", "Whitespace", "Interstitial Space"]
 
 
 def get_segmentation_class_numbers():

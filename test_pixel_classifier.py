@@ -3,7 +3,7 @@ import torch
 # import torch.nn as nn
 
 import numpy as np
-from scipy import stats
+# from scipy import stats
 import matplotlib.pyplot as plt
 
 from random import seed
@@ -20,7 +20,7 @@ np.random.seed(chosen_seed)
 torch.manual_seed(chosen_seed)
 torch.cuda.manual_seed_all(chosen_seed)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -44,7 +44,7 @@ def plot_img_and_colored_mask(mask, ground_truth_img, image_num, SAVE_PATH, spli
     colorize_ground_truth = colorize_mask(ground_truth_img, tma_12_palette)
 
     plt.imshow(colorized_mask)
-    plt.savefig(os.path.join(SAVE_PATH, split + "_image" + str(image_num) + "_pred_mask.png"))
+    plt.savefig(os.path.join(SAVE_PATH, split + "_image" + str(image_num) + "_pred_mask.png"), bbox_inches='tight')
     plt.clf()
 
     plt.imshow(colorize_ground_truth)
@@ -160,9 +160,7 @@ def main():
     #     plot_img_and_colored_mask(all_classifiers_pred_mask_list[idx], all_classifiers_ground_truth_mask_list[idx], idx, SAVE_PATH, split_name)
 
     ground_truth_mask_list, predicted_mask_list = test_one_classifier(
-        os.path.join(training_run_dir, training_run, "best_model_" + str(0) + ".pth"),
-        args,
-        test_dataloader)
+        os.path.join(training_run_dir, training_run, "best_model_" + str(0) + "_ep8.pth"), args, test_dataloader)
     for idx in range(len(predicted_mask_list)):
         print("Saving predicted mask and ground truth mask for image", idx)
         # all_classifiers_pred_mask_list[idx] is (1, 1, 1024, 1024)
@@ -171,10 +169,10 @@ def main():
 
 if __name__ == "__main__":
     training_run_dir = "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/"
-    training_run = "0015-TMA_Arteriole_stylegan2_ada"
-    # training_run = "0013-pixel_classifier_saves"
+    training_run = "0019-TMA_Arteriole_stylegan2_ada"
+    # training_run = "0018-pixel_classifier_saves"
     # SAVE_PATH = os.path.join(training_run_dir, training_run, "ensemble_mask_pred")
-    SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_mask_pred")
+    SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_ep8_mask_pred")
     if not os.path.exists(SAVE_PATH):
         os.mkdir(SAVE_PATH)
 

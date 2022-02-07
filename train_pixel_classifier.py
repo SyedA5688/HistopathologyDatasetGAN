@@ -9,12 +9,13 @@ from random import seed
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
-from utils.utils import multi_acc, EarlyStopping
+from utils.utils import multi_acc, oht_to_scalar, EarlyStopping
+from utils.data_util import tma_12_class
 from utils.visualization_utils import plot_loss_curves, plot_acc_curves
 from networks.pixel_classifier import PixelClassifier
-from pixel_features_dataset import PixelFeaturesDataset, ClassBalancedPixelFeaturesDataset
+from pixel_features_dataset import PixelFeaturesDataset
 
 
 chosen_seed = 0
@@ -25,7 +26,6 @@ torch.cuda.manual_seed_all(chosen_seed)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-# ToDo: After pixel classifier baseline, consider augmenting scarce pixel classes
 
 
 def log_string(str1):
@@ -34,7 +34,21 @@ def log_string(str1):
     logger.flush()
 
 
-def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc):
+class CustomWeightedRandomSampler(WeightedRandomSampler):
+    """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __iter__(self):
+        rand_tensor = np.random.choice(range(0, len(self.weights)),
+                                       size=self.num_samples,
+                                       p=self.weights.numpy() / torch.sum(self.weights).numpy(),
+                                       replace=self.replacement)
+        rand_tensor = torch.from_numpy(rand_tensor)
+        return iter(rand_tensor.tolist())
+
+
+def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc, epoch_num=None):
     with torch.no_grad():
         model.eval()
 
@@ -45,12 +59,22 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         summed_acc = 0.
         # Consider saving produced mask at every val epoch, or when validation improves
 
+        class_correct_count = [0 for _ in range(len(tma_12_class))]
+        class_total_count = [0 for _ in range(len(tma_12_class))]
+
         for batch_idx, (data, ground_truth) in enumerate(val_loader):
             data, ground_truth = data.to(device), ground_truth.long().to(device)
 
             pred_logits = model(data)
             loss = criterion(pred_logits, ground_truth)
             acc = multi_acc(pred_logits, ground_truth)
+            pixel_preds = oht_to_scalar(pred_logits)
+
+            # Accumulating class-wise counts to compute class-wise accuracy later on
+            for i in range(len(pred_logits)):
+                class_total_count[ground_truth[i]] += 1
+                if ground_truth[i] == pixel_preds[i]:  # Correct prediction
+                    class_correct_count[ground_truth[i]] += 1
 
             val_total_loss += loss.item()
             summed_acc += acc.item()
@@ -71,15 +95,29 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
 
         log_string('Validation Avg Batch Acc: {:.4f}, Validation Avg Batch Loss: {:.8f} {}'.format(float(val_avg_acc), float(val_avg_loss), improved_str) + "\n")
 
+        # Print out class-wise and total pixel-level accuracy
+        log_string("\nValidation Class-wise Accuracies for Single Model:")
+        class_accuracies = []
+        for i in range(len(tma_12_class)):
+            if class_total_count[i] != 0:
+                class_accuracies.append(class_correct_count[i] / class_total_count[i])
+            else:
+                class_accuracies.append(-1)  # Not applicable, 0 pixels of this class in test set
+
+        for i in range(len(tma_12_class)):
+            log_string(tma_12_class[i] + " Accuracy: " + str(round(class_accuracies[i], 5)))
+        log_string("\n")
+
         ####################################
         # Save model if there is improvement
         ####################################
         if improved:
             # Overwrite best saved model each time, only keep best model
+            save_name = "best_model_" + str(model_num) + ".pth" if epoch_num is None else "best_model_" + str(model_num) + "_ep" + str(epoch_num) + ".pth"
             torch.save({
                 'model_state_dict': model.state_dict(),
                 'validation_loss': val_avg_loss
-            }, os.path.join(SAVE_PATH, "best_model_" + str(model_num) + ".pth"))
+            }, os.path.join(SAVE_PATH, save_name))
 
         return val_avg_loss, return_loss, val_avg_acc, return_acc, improved
 
@@ -95,7 +133,8 @@ def train():
 
         classifier = nn.DataParallel(classifier).to(device)
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
+        # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
+        optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
 
         # Create datasets and dataloaders, specific for this model. Random selection of pixel features
         training_set = PixelFeaturesDataset(args["pixel_feat_save_dir"], split="train")
@@ -104,11 +143,12 @@ def train():
         log_string("Length of train dataset: " + str(len(training_set)))
         log_string("Length of validation dataset: " + str(len(validation_set)) + "\n")
 
-        # log_string("Training Dataset Balanced class pixel counts:")
-        # for idx, key in enumerate(training_set.class_counts):
-        #     log_string("Class " + str(idx) + ": " + str(training_set.class_counts[idx]))
-        # log_string("\n")
+        # log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
+        # sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
+        # # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=False)
+        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=False)
 
+        # train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler)
         train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True)
         val_loader = DataLoader(validation_set, batch_size=args['batch_size'], shuffle=False)
 
@@ -133,7 +173,7 @@ def train():
                 data, ground_truth = data.to(device), ground_truth.long().to(device)  # data is [b, 6080], ground_truth is [64,]
                 optimizer.zero_grad()
 
-                pred_logits = classifier(data)  # pred shape [b, 13]  # 13 class output probabilities
+                pred_logits = classifier(data)  # pred shape [b, 7]  # 7 class output probabilities
                 loss = criterion(pred_logits, ground_truth)
                 acc = multi_acc(pred_logits, ground_truth)
 
@@ -159,7 +199,7 @@ def train():
                 epoch, train_avg_acc, train_avg_loss, train_improved_str))
 
             # Run validation
-            val_avg_loss, lowest_validation_loss, val_avg_acc, highest_val_acc, val_improved = validation(classifier, model_num, val_loader, criterion, lowest_validation_loss, highest_val_acc)
+            val_avg_loss, lowest_validation_loss, val_avg_acc, highest_val_acc, val_improved = validation(classifier, model_num, val_loader, criterion, lowest_validation_loss, highest_val_acc, epoch)
             val_losses.append(float(val_avg_loss))
             val_acc_list.append(float(val_avg_acc))
 
@@ -196,7 +236,7 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str)
+    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
 
