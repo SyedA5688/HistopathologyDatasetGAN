@@ -96,7 +96,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         log_string('Validation Avg Batch Acc: {:.4f}, Validation Avg Batch Loss: {:.8f} {}'.format(float(val_avg_acc), float(val_avg_loss), improved_str) + "\n")
 
         # Print out class-wise and total pixel-level accuracy
-        log_string("\nValidation Class-wise Accuracies for Single Model:")
+        log_string("Validation Class-wise Accuracies for Single Model:")
         class_accuracies = []
         for i in range(len(tma_12_class)):
             if class_total_count[i] != 0:
@@ -132,7 +132,7 @@ def train():
         log_string("Model architecture:\n" + str(classifier) + "\n")
 
         classifier = nn.DataParallel(classifier).to(device)
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss(label_smoothing=0.25)
         # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
         optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
 
@@ -145,8 +145,8 @@ def train():
 
         # log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
         # sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
-        # # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=False)
-        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=False)
+        # # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
         # train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler)
         train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True)
