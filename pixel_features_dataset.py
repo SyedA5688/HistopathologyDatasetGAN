@@ -114,6 +114,10 @@ class PixelFeaturesDataset(Dataset):
         #     # torch.zeros(1, 6080).data.normal_(0, 0.05)
         #     return aug_pixel_feat, ground_truth_class
 
+        # Manual form of label smoothing
+        if self.split == "train" and random.random() < 0.05:
+            ground_truth_class = random.choice(list(range(7)))  # Choose another random class as label
+
         # returns shapes (6080,) and (1,)
         return pixel_feat, ground_truth_class
 

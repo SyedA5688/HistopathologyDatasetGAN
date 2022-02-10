@@ -24,7 +24,7 @@ np.random.seed(chosen_seed)
 torch.manual_seed(chosen_seed)
 torch.cuda.manual_seed_all(chosen_seed)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -132,9 +132,9 @@ def train():
         log_string("Model architecture:\n" + str(classifier) + "\n")
 
         classifier = nn.DataParallel(classifier).to(device)
-        criterion = nn.CrossEntropyLoss(label_smoothing=0.25)
-        # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
-        optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
+        criterion = nn.CrossEntropyLoss()  # label_smoothing=0.5
+        optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
+        # optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
 
         # Create datasets and dataloaders, specific for this model. Random selection of pixel features
         training_set = PixelFeaturesDataset(args["pixel_feat_save_dir"], split="train")
@@ -143,13 +143,13 @@ def train():
         log_string("Length of train dataset: " + str(len(training_set)))
         log_string("Length of validation dataset: " + str(len(validation_set)) + "\n")
 
-        # log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
-        # sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
-        # # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
-        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
+        sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
+        # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
-        # train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler)
-        train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True)
+        train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler)
+        # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True)
         val_loader = DataLoader(validation_set, batch_size=args['batch_size'], shuffle=False)
 
         # Training loop
@@ -229,6 +229,7 @@ def main():
     except KeyboardInterrupt:
         # Catch if there is a Keyboard Interruption (ctrl-c). Plot train-val loss curves
         plot_loss_curves(train_losses, val_losses, "last", SAVE_PATH)
+        plot_acc_curves(train_acc_list, val_acc_list, "last", SAVE_PATH)
 
     seconds_elapsed = time.time() - start_time
     log_string("Training took %s minutes" % str(seconds_elapsed / 60.))
