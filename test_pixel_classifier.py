@@ -1,15 +1,15 @@
 import os
-import torch
-# import torch.nn as nn
-
-import numpy as np
-# from scipy import stats
-import matplotlib.pyplot as plt
-
+import json
+import argparse
 from random import seed
-from utils.utils import multi_acc, oht_to_scalar, colorize_mask
-from utils.data_util import tma_12_palette, tma_12_class
+
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
+
+from utils.utils import oht_to_scalar, colorize_mask
+from utils.data_util import tma_12_palette, tma_12_class
 from pixel_features_dataset import PixelFeaturesDataset
 from networks.pixel_classifier import PixelClassifier
 
@@ -20,7 +20,7 @@ np.random.seed(chosen_seed)
 torch.manual_seed(chosen_seed)
 torch.cuda.manual_seed_all(chosen_seed)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -30,13 +30,12 @@ def log_string(logger, str1):
     logger.flush()
 
 
-def plot_img_and_colored_mask(mask, ground_truth_img, image_num, SAVE_PATH, split):
+def plot_img_and_colored_mask(mask, ground_truth_img, image_num, split):
     """
     Args:
         mask: Numpy array of shape (height, width) to save
         ground_truth_img: Numpy array of shape (height, width) to save
         image_num:
-        SAVE_PATH:
         split: dataset split images belong to
 
     """
@@ -53,7 +52,7 @@ def plot_img_and_colored_mask(mask, ground_truth_img, image_num, SAVE_PATH, spli
     plt.close()
 
 
-def test_one_classifier(model_path, args, data_loader):
+def test_one_classifier(model_path, data_loader):
     model = PixelClassifier(num_classes=args["num_classes"], dim=args['featuremaps_dim'][-1])
     checkpoint = torch.load(model_path)['model_state_dict']
     prefix = 'module.'
@@ -81,9 +80,8 @@ def test_one_classifier(model_path, args, data_loader):
             if idx % 100 == 0:
                 print("On batch idx", idx)
             data, ground_truth = data.to(device), ground_truth.long().to(device)
-            # data is [b, 6080], ground_truth is [64,]
 
-            pred_logits = model(data)  # pred shape [b, 7]  # 7 class output probabilities
+            pred_logits = model(data)  # pred shape [b, 7]
             pixel_preds = oht_to_scalar(pred_logits)
 
             # Accumulating class-wise counts to compute class-wise accuracy later on
@@ -94,12 +92,6 @@ def test_one_classifier(model_path, args, data_loader):
 
             ground_truth_mask[idx % 1024] = ground_truth
             predicted_mask[idx % 1024] = pixel_preds
-
-            # loss = criterion(pred_logits, ground_truth)
-            # acc = multi_acc(pred_logits, ground_truth)
-
-            # total_loss += loss.item() 1024 2048
-            # summed_acc += acc.item()
 
             if (idx + 1) in image_end_points:
                 ground_truth_mask = ground_truth_mask.numpy()
@@ -135,10 +127,21 @@ def test_one_classifier(model_path, args, data_loader):
 
 
 def main():
-    test_set = PixelFeaturesDataset(args["pixel_feat_save_dir"], split="test")
-    test_dataloader = DataLoader(test_set, batch_size=1024, shuffle=False)
+    # test_set = PixelFeaturesDataset(args["dataset_save_dir"], split="test")
+    # test_dataloader = DataLoader(test_set, batch_size=1024, shuffle=False)
+
+    val_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
+    val_dataloader = DataLoader(val_set, batch_size=1024, shuffle=False)
 
     split_name = "test"
+    ground_truth_mask_list, predicted_mask_list = test_one_classifier(
+        os.path.join(training_run_dir, training_run, "best_model_" + str(0) + "_ep0.pth"), val_dataloader)
+    for idx in range(len(predicted_mask_list)):
+        print("Saving predicted mask and ground truth mask for image", idx)
+        # all_classifiers_pred_mask_list[idx] is (1, 1, 1024, 1024)
+        plot_img_and_colored_mask(predicted_mask_list[idx], ground_truth_mask_list[idx], idx, split_name)
+
+    # Code for ensemble mask prediction
     # all_classifiers_ground_truth_mask_list = []
     # all_classifiers_pred_mask_list = []
     #
@@ -159,61 +162,21 @@ def main():
     #     # all_classifiers_pred_mask_list[idx] is (1, 1, 1024, 1024)
     #     plot_img_and_colored_mask(all_classifiers_pred_mask_list[idx], all_classifiers_ground_truth_mask_list[idx], idx, SAVE_PATH, split_name)
 
-    ground_truth_mask_list, predicted_mask_list = test_one_classifier(
-        os.path.join(training_run_dir, training_run, "best_model_" + str(0) + "_ep0.pth"), args, test_dataloader)
-    for idx in range(len(predicted_mask_list)):
-        print("Saving predicted mask and ground truth mask for image", idx)
-        # all_classifiers_pred_mask_list[idx] is (1, 1, 1024, 1024)
-        plot_img_and_colored_mask(predicted_mask_list[idx], ground_truth_mask_list[idx], idx, SAVE_PATH, split_name)
-
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--experiment', type=str,
+                        default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
+    parser.add_argument('--num_sample', type=int, default=100)
+
+    opts = parser.parse_args()
+    args = json.load(open(opts.experiment, 'r'))
+
     training_run_dir = "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/"
-    training_run = "0028-TMA_Arteriole_stylegan2_ada"
-    # training_run = "0018-pixel_classifier_saves"
+    training_run = "0031-TMA_Arteriole_stylegan2_ada"
     # SAVE_PATH = os.path.join(training_run_dir, training_run, "ensemble_mask_pred")
-    SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_ep0_mask_pred")
+    SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_ep0_val_mask_pred")
     if not os.path.exists(SAVE_PATH):
         os.mkdir(SAVE_PATH)
-
-    args = {
-        "average_latent": "",
-        "batch_size": 32768,
-        "category": "TMA",
-        "data_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/generated_datasets/TMA_1024_Arteriole2",
-        "deeplab_res": 1024,
-        "early_stopping_patience": 8,
-        "epochs": 10,
-        "experiment_dir": "training-runs/00010-TMA_Arteriole_stylegan2_ada",
-        "featuremaps_dim": [1024, 1024, 6080],
-        "G_kwargs": {
-        "class_name": "networks.stylegan2_ada.Generator",
-        "z_dim": 512,
-        "w_dim": 512,
-        "mapping_kwargs": {
-          "num_layers": 2
-        },
-        "synthesis_kwargs": {
-          "channel_base": 32768,
-          "channel_max": 512,
-          "num_fp16_res": 4,
-          "conv_clamp": 256
-        }
-        },
-        "log_frequency": 30000,
-        "max_training": 24,
-        "model_num": 10,
-        "num_classes": 7,
-        "pixel_classifier_lr": 0.001,
-        "pixel_feat_save_dir": "/data/syed/hdgan/TMA_1024_Arteriole2",
-        "resolution": 1024,
-        "stylegan_checkpoint": "/data/syed/stylegan2-ada-training/00000--mirror-auto4-Arteriole/network-snapshot-006000.pkl",
-        "stylegan_ver": "2_ADA",
-        "testing_data_number_class": 1,
-        "testing_path": "",
-        "truncation": 0.7,
-        "upsample_mode":"bilinear",
-        "val_fold_idx": 0
-    }
 
     main()

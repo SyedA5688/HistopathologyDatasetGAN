@@ -1,15 +1,17 @@
 import os
 import json
 import argparse
-import numpy as np
+
 
 import torch
+import numpy as np
+
 from load_networks import load_stylegan2_ada, get_upsamplers
 from utils.utils import latent_to_image
 
 np.random.seed(0)
 torch.manual_seed(0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -69,12 +71,12 @@ def main():
     upsamplers = get_upsamplers(args)
 
     # Create dataset
-    create_pixel_classifier_compressed_dataset(args["data_dir"], g_all, upsamplers, save_path=args["pixel_feat_save_dir"])
+    create_pixel_classifier_compressed_dataset(args["dataset_save_dir"], g_all, upsamplers, save_path=args["dataset_save_dir"])
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str)
+    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
 

@@ -10,5 +10,5 @@ and makes some improvements on memory consumption.
 3. Annotate the generated images in QuPath.
 4. Run QuPath batch processing script on QuPath projects to create compartment masks.
 5. Run the script generated_datasets/concatenate_QuPath_annotation_masks.py (point paths to correct directories) in order to stitch compartment masks together into ground truth masks.
-6. Create pixel feature dataset that will be used in training by dataloaders, use script create_pixel_dataset.py
+6. Create pixel feature dataset that will be used in training by dataloaders, use script process_pixel_dataset.py
 7. Run pixel classification training, script is train_pixel_classifier.py

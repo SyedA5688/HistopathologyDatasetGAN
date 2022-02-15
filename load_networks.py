@@ -2,24 +2,21 @@ import os
 
 import torch
 import torch.nn as nn
-import numpy as np
-import dnnlib
-
 from torch_utils import misc
+import numpy as np
+
+import dnnlib
 from networks import legacy
 from utils.utils import Interpolate
 
 
 np.random.seed(0)
 torch.manual_seed(0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def load_stylegan2_ada(args):
-    assert args['stylegan_ver'] == "2_ADA", "Please use StyleGAN2-ADA"
-    assert args['category'] is not None, "Please specify a category and accompanying stylegan2_ada hyperparameters"
-
     # Define dictionary with StyleGan2ADA Parameters
     g_kwargs = args['G_kwargs']
     common_kwargs = dict(c_dim=0, img_resolution=args['resolution'], img_channels=3)

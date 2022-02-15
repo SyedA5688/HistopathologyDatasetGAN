@@ -3,13 +3,13 @@ import gc
 import json
 import time
 import argparse
-import numpy as np
 from random import seed
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, WeightedRandomSampler
+import numpy as np
 
 from utils.utils import multi_acc, oht_to_scalar, EarlyStopping
 from utils.data_util import tma_12_class
@@ -133,12 +133,12 @@ def train():
 
         classifier = nn.DataParallel(classifier).to(device)
         criterion = nn.CrossEntropyLoss()  # label_smoothing=0.5
-        optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
-        # optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
+        # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
+        optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
 
         # Create datasets and dataloaders, specific for this model. Random selection of pixel features
-        training_set = PixelFeaturesDataset(args["pixel_feat_save_dir"], split="train")
-        validation_set = PixelFeaturesDataset(args["pixel_feat_save_dir"], split="val")
+        training_set = PixelFeaturesDataset(args["dataset_save_dir"], split="train")
+        validation_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
 
         log_string("Length of train dataset: " + str(len(training_set)))
         log_string("Length of validation dataset: " + str(len(validation_set)) + "\n")

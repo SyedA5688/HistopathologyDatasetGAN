@@ -18,6 +18,8 @@ from torch_utils.ops import fma
 from networks import legacy
 import dnnlib
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 #----------------------------------------------------------------------------
 
 @misc.profiled_function
@@ -505,15 +507,13 @@ class Generator(torch.nn.Module):
         return img, feature_list
 
     def make_mean_latent(self, n_latent, truncation_psi=1):
-        latent_in = torch.randn(n_latent, 512).to('cuda')
+        latent_in = torch.randn(n_latent, 512).to(device)
         mean_latent = self.mapping(latent_in, c=0, truncation_psi=truncation_psi).mean(0, keepdim=True)
         # mean_latent = mean_latent.expand(-1, 18, -1)
         return mean_latent
 
 
 if __name__ == "__main__":
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
     G_kwargs = {
         "class_name": "networks.stylegan2_ada.Generator",
         "z_dim": 512,

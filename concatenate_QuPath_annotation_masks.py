@@ -1,10 +1,12 @@
 import os
 import glob
+import json
+import argparse
+
 import numpy as np
 from PIL import Image
 
-# from utils.data_util import tma_12_class
-tma_12_class = ["Glomerulus", "Arteriole", "Artery", "TubuleDuct", "PTC", "Whitespace", "Interstitial Space"]
+from utils.data_util import tma_12_class
 
 
 def get_segmentation_class_numbers():
@@ -77,6 +79,33 @@ def reconstruct_mask_for_one_image(image_path, image_name, annotation_masks_path
     concatenated_mask = np.where(interstitial_mask, seg_classes["Interstitial Space"], concatenated_mask)
     return concatenated_mask
 
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--experiment', type=str,
+                        default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
+    parser.add_argument('--num_sample', type=int, default=100)
+
+    opts = parser.parse_args()
+    args = json.load(open(opts.experiment, 'r'))
+
+    seg_classes = get_segmentation_class_numbers()
+    img_annotation_mask_fnames = get_annotation_mask_filenames_for_each_img(args["dataset_save_dir"], args["qupath_annotation_mask_dir"])
+
+    for file in os.listdir(args["dataset_save_dir"]):
+        if file.split(".")[-1] == "jpg":
+            concat_mask = reconstruct_mask_for_one_image(args["dataset_save_dir"], file, args["qupath_annotation_mask_dir"], img_annotation_mask_fnames, seg_classes)
+
+            np.save(os.path.join(args["dataset_save_dir"], file.split(".jpg")[0] + "_mask.npy"), concat_mask)
+
+    print("Done.")
+
+
+if __name__ == "__main__":
+    main()
+
+
 """
 Debugging help
 import matplotlib.pyplot as plt
@@ -110,22 +139,3 @@ def plot_img_and_colored_mask(image_num):
     plt.show()
 
 """
-
-def main():
-    # Define paths
-    image_path = '/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/generated_datasets/TMA_1024_Arteriole2/'
-    annotation_masks_path = '/home/cougarnet.uh.edu/srizvi7/Desktop/TMA_Fake_Arteriole_Segmentation/mask/'
-
-    seg_classes = get_segmentation_class_numbers()
-    img_annotation_mask_fnames = get_annotation_mask_filenames_for_each_img(image_path, annotation_masks_path)
-
-    for file in os.listdir(image_path):
-        if file.split(".")[-1] == "jpg":
-            concat_mask = reconstruct_mask_for_one_image(image_path, file, annotation_masks_path, img_annotation_mask_fnames, seg_classes)
-            np.save("/data/syed/hdgan/TMA_1024_Arteriole2/" + file.split(".jpg")[0] + "_mask.npy", concat_mask)
-
-    print("Done.")
-
-
-if __name__ == "__main__":
-    main()
