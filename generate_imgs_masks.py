@@ -8,10 +8,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 
-from utils.utils import oht_to_scalar
+from utils.utils import oht_to_scalar, colorize_mask, latent_to_image
+from utils.data_util import tma_12_palette
 from networks.pixel_classifier import PixelClassifier
 from load_networks import load_stylegan2_ada, get_upsamplers
-from utils.utils import latent_to_image
 
 
 chosen_seed = 0
@@ -20,7 +20,7 @@ np.random.seed(chosen_seed)
 torch.manual_seed(chosen_seed)
 torch.cuda.manual_seed_all(chosen_seed)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -51,19 +51,23 @@ def generate_one_image_mask_pair(idx, g_all, upsamplers, classifier):
             pred_logits = classifier(pixel_features_list[i:i+1024])  # pred shape [b, 7]  # 7 classes
             pixel_preds = oht_to_scalar(pred_logits)
             all_pixel_preds.append(pixel_preds.unsqueeze(0))
-        all_pixel_preds = torch.cat(all_pixel_preds, dim=0)
+        all_pixel_preds = torch.cat(all_pixel_preds, dim=0).detach().cpu().numpy()
 
     # Create arteriole mask - only task arteriole class predictions in center 512x512
-    mask = np.zeros((1024, 1024))
-    for row in range(256, 768):
-        for col in range(256, 768):
+    arteriole_mask = np.zeros((1024, 1024))
+    for row in range(0, 1024):
+        for col in range(0, 1024):
             if all_pixel_preds[row][col] == 1:  # If predicted Arteriole
-                mask[row][col] = 255
+                arteriole_mask[row][col] = 255
 
-    # Save generated mask
-    np.save(os.path.join(SAVE_PATH, "arteriole_mask_{}.jpg".format(idx)), mask)
+    # Save generated masks
+    np.save(os.path.join(SAVE_PATH, "multiclass_mask_{}".format(idx)), all_pixel_preds)
+    colorized_multiclass_mask = colorize_mask(all_pixel_preds, tma_12_palette)
+    plt.imsave(os.path.join(SAVE_PATH, "multiclass_mask_img_{}.png".format(idx)), colorized_multiclass_mask)
+
+    np.save(os.path.join(SAVE_PATH, "arteriole_mask_{}".format(idx)), arteriole_mask)
     image_path = os.path.join(SAVE_PATH, "arteriole_mask_img_{}.jpg".format(idx))
-    plt.imsave(image_path, mask)
+    plt.imsave(image_path, arteriole_mask)
 
 def main():
     g_all, avg_latent = load_stylegan2_ada(args)
@@ -88,15 +92,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--experiment', type=str,
                         default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
-    parser.add_argument('--num_sample', type=int, default=100)
 
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
 
-    training_run = "0031-TMA_Arteriole_stylegan2_ada"
-    SAVE_PATH = os.path.join(args["dataset_save_dir"], "generating_img_mask_data")
-    model_path = os.path.join(args["experiment_dir"], training_run, "best_model_" + str(0) + "_ep0.pth")
-    NUM_IMAGES = 100
+    SAVE_PATH = os.path.join(args["dataset_save_dir"], "artificial_dataset_5000")
+    model_path = os.path.join(args["experiment_dir"], "best_model_" + str(0) + "_ep0.pth")
+    NUM_IMAGES = 5000
 
     if not os.path.exists(SAVE_PATH):
         os.mkdir(SAVE_PATH)

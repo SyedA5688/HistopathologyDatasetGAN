@@ -127,7 +127,7 @@ def train():
     for model_num in range(args["model_num"]):
         log_string("Training classifier #" + str(model_num) + "\n")
         gc.collect()
-        classifier = PixelClassifier(num_classes=args["num_classes"], dim=args['featuremaps_dim'][-1])
+        classifier = PixelClassifier(num_classes=args["num_classes"], dim=5888)  # ToDo: replaced args['featuremaps_dim'][-1]
         classifier.init_weights()
         log_string("Model architecture:\n" + str(classifier) + "\n")
 
@@ -173,7 +173,7 @@ def train():
                 data, ground_truth = data.to(device), ground_truth.long().to(device)  # data is [b, 6080], ground_truth is [64,]
                 optimizer.zero_grad()
 
-                pred_logits = classifier(data)  # pred shape [b, 7]  # 7 class output probabilities
+                pred_logits = classifier(data[:192])  # pred shape [b, 7]  # 7 class output probabilities
                 loss = criterion(pred_logits, ground_truth)
                 acc = multi_acc(pred_logits, ground_truth)
 
@@ -205,7 +205,7 @@ def train():
 
             # Check for early stopping criteria
             early_stopper(val_avg_loss)
-            if val_improved:  # Eary stopper won't count increases in accuracy
+            if val_improved:
                 early_stopper.counter = 0
             if early_stopper.early_stop:
                 break
