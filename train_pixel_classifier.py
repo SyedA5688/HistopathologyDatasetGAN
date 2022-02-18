@@ -173,7 +173,7 @@ def train():
                 data, ground_truth = data.to(device), ground_truth.long().to(device)  # data is [b, 6080], ground_truth is [64,]
                 optimizer.zero_grad()
 
-                pred_logits = classifier(data[:192])  # pred shape [b, 7]  # 7 class output probabilities
+                pred_logits = classifier(data[:, :192])  # pred shape [b, 7]  # 7 class output probabilities
                 loss = criterion(pred_logits, ground_truth)
                 acc = multi_acc(pred_logits, ground_truth)
 
