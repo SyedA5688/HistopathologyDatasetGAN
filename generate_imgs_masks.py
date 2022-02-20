@@ -1,6 +1,7 @@
 import os
 import json
 import argparse
+import functools
 from random import seed
 
 import torch
@@ -21,7 +22,8 @@ torch.manual_seed(chosen_seed)
 torch.cuda.manual_seed_all(chosen_seed)
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 
 def generate_one_image_mask_pair(idx, g_all, upsamplers, classifier):
@@ -71,6 +73,8 @@ def generate_one_image_mask_pair(idx, g_all, upsamplers, classifier):
 
 def main():
     g_all, avg_latent = load_stylegan2_ada(args)
+    # Line for inference on CPU
+    g_all.forward = functools.partial(g_all.forward, force_fp32=True)
     upsamplers = get_upsamplers(args)
 
     # Load pretrained pixel classifier

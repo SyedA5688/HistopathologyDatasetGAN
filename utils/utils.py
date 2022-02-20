@@ -27,7 +27,8 @@ import torch.nn as nn
 from PIL import Image
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 class Interpolate(nn.Module):
     def __init__(self, size, mode):
@@ -72,31 +73,32 @@ def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, tru
     :return: images: torch tensor shape [len(latents), dim, dim],
              upsampled_featuremaps: torch tensor shape [sum of featuremaps dimension, dim, dim]
     """
-    if is_w_latent:
-        w_latents = latents
-        images, affine_layers = g_all.synthesis(w_latents)
-    else:
-        # Pass conditioning label here
-        images, affine_layers = g_all(latents, c=0, truncation_psi=truncation_psi, noise_mode=noise_mode)
+    with torch.no_grad():
+        if is_w_latent:
+            w_latents = latents
+            images, affine_layers = g_all.synthesis(w_latents)
+        else:
+            # Pass conditioning label here
+            images, affine_layers = g_all(latents, c=0, truncation_psi=truncation_psi, noise_mode=noise_mode)
 
-    num_features = 0
-    for item in affine_layers:
-        num_features += item.shape[1]
+        num_features = 0
+        for item in affine_layers:
+            num_features += item.shape[1]
 
-    upsampled_featuremaps = None
-    if return_upsampled_featuremaps:
-        upsampled_featuremaps = torch.FloatTensor(1, num_features, dim, dim).to(device)
-        start_channel_index = 0
-        for i in range(len(affine_layers)):
-            len_channel = affine_layers[i].shape[1]
-            upsampled_featuremaps[:, start_channel_index:start_channel_index + len_channel] = upsamplers[i](affine_layers[i])
-            start_channel_index += len_channel
+        upsampled_featuremaps = None
+        if return_upsampled_featuremaps:
+            upsampled_featuremaps = torch.FloatTensor(1, num_features, dim, dim).to(device)
+            start_channel_index = 0
+            for i in range(len(affine_layers)):
+                len_channel = affine_layers[i].shape[1]
+                upsampled_featuremaps[:, start_channel_index:start_channel_index + len_channel] = upsamplers[i](affine_layers[i])
+                start_channel_index += len_channel
 
-        upsampled_featuremaps = upsampled_featuremaps.cpu()
-        torch.cuda.empty_cache()
+            upsampled_featuremaps = upsampled_featuremaps.cpu()
+            torch.cuda.empty_cache()
 
-    if process_out:
-        images = (images.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+        if process_out:
+            images = (images.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
 
     return images, upsampled_featuremaps
 

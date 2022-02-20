@@ -1,6 +1,7 @@
 import os
 import json
 import argparse
+import functools
 
 import torch
 import numpy as np
@@ -11,8 +12,9 @@ from utils.utils import latent_to_image
 
 np.random.seed(0)
 torch.manual_seed(0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 
 def generate_data(num_sample):
@@ -21,6 +23,8 @@ def generate_data(num_sample):
         print('Experiment folder created at: %s' % args["dataset_save_dir"])
 
     g_all, avg_latent = load_stylegan2_ada(args)
+    # Line for inference on CPU
+    g_all.forward = functools.partial(g_all.forward, force_fp32=True)
     upsamplers = get_upsamplers(args)
 
     # Save avg_latent
@@ -69,8 +73,8 @@ def generate_data(num_sample):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
-    parser.add_argument('--num_sample', type=int,  default=100)
+    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
+    parser.add_argument('--num_sample', type=int,  default=500)
 
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))

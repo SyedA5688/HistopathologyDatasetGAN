@@ -13,7 +13,8 @@ from utils.utils import Interpolate
 np.random.seed(0)
 torch.manual_seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 
 def load_stylegan2_ada(args):
