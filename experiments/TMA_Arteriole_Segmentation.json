@@ -1,9 +1,10 @@
 {
-  "batch_size": 8,
-  "epochs": 50,
+  "batch_size": 4,
+  "epochs": 5,
   "experiment_desc": "Training DeepLabV3 on generated images and masks, seeing if mask noise reduces.",
-  "experiment_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/segm-training-runs/0000-TMA_Arteriole_Segmentation",
+  "experiment_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/segm-training-runs/0001-TMA_Arteriole_Segmentation",
   "dataset_dir": "/data/syed/hdgan/TMA_1024_Arteriole2/",
-  "learning_rate": 0.0001,
-  "num_classes": 7
+  "learning_rate": 0.001,
+  "num_classes": 7,
+  "resolution": 1024
 }

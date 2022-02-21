@@ -20,7 +20,7 @@ np.random.seed(chosen_seed)
 torch.manual_seed(chosen_seed)
 torch.cuda.manual_seed_all(chosen_seed)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
