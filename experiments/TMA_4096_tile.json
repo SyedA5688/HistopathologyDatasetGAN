@@ -1,7 +1,7 @@
 {
   "average_latent": "",
   "batch_size": 32768,
-  "dataset_save_dir": "/data/syed/hdgan/TMA_4096",
+  "dataset_save_dir": "/data/syed/hdgan/TMA_4096_snapshot2600",
   "early_stopping_patience": 10,
   "epochs": 5,
   "experiment_desc": "",
@@ -24,9 +24,9 @@
   "model_num": 2,
   "num_classes": 7,
   "pixel_classifier_lr": 0.0001,
-  "qupath_annotation_mask_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/TMA_Fake_Arteriole_Segmentation/mask/",
-  "resolution": 1024,
-  "stylegan_checkpoint": "/data/syed/stylegan2-ada-training/00003-tile-mirror-auto4-color/network-snapshot-003600.pkl",
+  "qupath_annotation_mask_dir": "",
+  "resolution": 4096,
+  "stylegan_checkpoint": "/data/syed/stylegan2-ada-training/00003-tile-mirror-auto4-color/network-snapshot-002600.pkl",
   "truncation": 0.7,
   "upsample_mode":"bilinear"
 }

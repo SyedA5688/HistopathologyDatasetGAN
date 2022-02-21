@@ -27,8 +27,8 @@ import torch.nn as nn
 from PIL import Image
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cpu'
 
 class Interpolate(nn.Module):
     def __init__(self, size, mode):

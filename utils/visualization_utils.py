@@ -3,9 +3,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def plot_loss_curves(train_losses, val_losses, model_num, save_path):
-    if type(model_num) != str:
-        model_num = str(model_num)
+def plot_loss_curves(train_losses, val_losses, name, save_path):
+    if type(name) != str:
+        name = str(name)
 
     if len(train_losses) != len(val_losses):
         min_len = min(len(train_losses), len(val_losses))
@@ -20,8 +20,8 @@ def plot_loss_curves(train_losses, val_losses, model_num, save_path):
     })
 
     sns.lineplot(x='Epoch', y='value', hue='variable', data=pd.melt(visual_df, ['Epoch']))
-    plt.title("Pixel Classifier #" + str(model_num) + " Loss Curves")
-    plt.savefig(save_path + '/pixel_classifier_' + str(model_num) + '_loss_curves.png')
+    plt.title(str(name) + " Loss Curves")
+    plt.savefig(save_path + '/pixel_classifier_' + name + '_loss_curves.png')
     plt.clf()
 
 

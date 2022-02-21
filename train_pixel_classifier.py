@@ -211,8 +211,8 @@ def train():
                 break
 
         log_string("Done training classifier " + str(model_num) + "\n\n" + "---" * 40)
-        plot_loss_curves(train_losses, val_losses, model_num, SAVE_PATH)
-        plot_acc_curves(train_acc_list, val_acc_list, model_num, SAVE_PATH)
+        plot_loss_curves(train_losses, val_losses, "Pixel Classifier #" + str(model_num), SAVE_PATH)
+        plot_acc_curves(train_acc_list, val_acc_list, "Pixel Classifier #" + str(model_num), SAVE_PATH)
 
 
 def main():
@@ -228,8 +228,8 @@ def main():
         train()
     except KeyboardInterrupt:
         # Catch if there is a Keyboard Interruption (ctrl-c). Plot train-val loss curves
-        plot_loss_curves(train_losses, val_losses, "last", SAVE_PATH)
-        plot_acc_curves(train_acc_list, val_acc_list, "last", SAVE_PATH)
+        plot_loss_curves(train_losses, val_losses, "Last Pixel Classifier", SAVE_PATH)
+        plot_acc_curves(train_acc_list, val_acc_list, "Last Pixel Classifier", SAVE_PATH)
 
     seconds_elapsed = time.time() - start_time
     log_string("Training took %s minutes" % str(seconds_elapsed / 60.))

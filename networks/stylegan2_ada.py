@@ -18,8 +18,8 @@ from torch_utils.ops import fma
 from networks import legacy
 import dnnlib
 
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cpu'
 
 #----------------------------------------------------------------------------
 

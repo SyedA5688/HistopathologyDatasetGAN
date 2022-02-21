@@ -13,8 +13,8 @@ from utils.utils import latent_to_image
 np.random.seed(0)
 torch.manual_seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cpu'
 
 
 def generate_data(num_sample):
@@ -24,7 +24,8 @@ def generate_data(num_sample):
 
     g_all, avg_latent = load_stylegan2_ada(args)
     # Line for inference on CPU
-    g_all.forward = functools.partial(g_all.forward, force_fp32=True)
+    # g_all.forward = functools.partial(g_all.forward, force_fp32=True)
+    # g_all.synthesis.forward = functools.partial(g_all.synthesis.forward, force_fp32=True)
     upsamplers = get_upsamplers(args)
 
     # Save avg_latent
@@ -46,11 +47,10 @@ def generate_data(num_sample):
                 latent_np = np.random.RandomState(i).randn(1, g_all.z_dim)
                 latent_cache.append(np.copy(latent_np))
                 latent = torch.from_numpy(latent_np).to(device)
-                img, _ = latent_to_image(g_all, upsamplers, latent, is_w_latent=False, dim=args['featuremaps_dim'][1],
-                                         truncation_psi=args['truncation'], return_upsampled_featuremaps=False)
+                img, _ = latent_to_image(g_all, upsamplers, latent, is_w_latent=False, dim=args['featuremaps_dim'][1], truncation_psi=args['truncation'], return_upsampled_featuremaps=False)
 
             img = Image.fromarray(img[0].cpu().numpy(), 'RGB')
-            image_path = os.path.join(args["dataset_save_dir"], "image_%d.jpg" % i)
+            image_path = os.path.join(args["dataset_save_dir"], "image_%d.png" % i)
             img.save(image_path)
 
         latent_cache = np.concatenate(latent_cache, 0)
@@ -67,7 +67,7 @@ def generate_data(num_sample):
                                      truncation_psi=args['truncation'], return_upsampled_featuremaps=False)
 
             img = Image.fromarray(img[0].cpu().numpy(), 'RGB')
-            image_path = os.path.join(reconstruct_save_path, "reconstructed_image_%d.jpg" % (idx + 1))
+            image_path = os.path.join(reconstruct_save_path, "reconstructed_image_%d.png" % (idx + 1))
             img.save(image_path)
 
 

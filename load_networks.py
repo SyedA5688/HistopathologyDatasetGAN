@@ -13,8 +13,8 @@ from utils.utils import Interpolate
 np.random.seed(0)
 torch.manual_seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# device = 'cpu'
 
 
 def load_stylegan2_ada(args):
@@ -54,13 +54,17 @@ def get_upsamplers(args):
                   nn.Upsample(scale_factor=res / 128, mode=mode),
                   nn.Upsample(scale_factor=res / 128, mode=mode),
                   nn.Upsample(scale_factor=res / 256, mode=mode),
-                  nn.Upsample(scale_factor=res / 256, mode=mode)]
+                  nn.Upsample(scale_factor=res / 256, mode=mode),
+                  nn.Upsample(scale_factor=res / 512, mode=mode),
+                  nn.Upsample(scale_factor=res / 512, mode=mode),
+                  nn.Upsample(scale_factor=res / 1024, mode=mode),
+                  nn.Upsample(scale_factor=res / 1024, mode=mode)]
 
-    if res > 256:
-        upsamplers.append(nn.Upsample(scale_factor=res / 512, mode=mode))
-        upsamplers.append(nn.Upsample(scale_factor=res / 512, mode=mode))
+    if res > 1024:
+        upsamplers.append(nn.Upsample(scale_factor=res / 2048, mode=mode))
+        upsamplers.append(nn.Upsample(scale_factor=res / 2048, mode=mode))
 
-    if res > 512:
+    if res > 2048:
         upsamplers.append(Interpolate(res, 'bilinear'))
         upsamplers.append(Interpolate(res, 'bilinear'))
 
