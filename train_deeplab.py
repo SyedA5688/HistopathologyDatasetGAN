@@ -100,7 +100,7 @@ def validation(model, val_loader, criterion, lowest_val_loss):
         return_loss = val_avg_loss if val_avg_loss < lowest_val_loss else lowest_val_loss
         log_string('Validation Avg Batch Loss: {:.8f} {}'.format(float(val_avg_loss), improved_str) + "\n")
 
-        if improved:
+        if improved:  # ToDo: Implement accuracy in validation set, judge improved based on validation loss
             save_name = "best_deeplab_model.pth"
             torch.save({
                 'model_state_dict': model.state_dict(),

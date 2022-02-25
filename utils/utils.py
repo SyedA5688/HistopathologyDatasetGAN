@@ -60,6 +60,28 @@ def oht_to_scalar(y_pred):
     return y_pred_tags
 
 
+def dice_coefficient(pred, target):
+    """
+    This function will compute dice score on a single predicted mask-ground truth mask pair.
+    Both pred and target are expected to be one-hot encoded, in the form: (num_classes, height, width)
+    Formula: (2 * TP) / (2 * TP + FP + FN)
+
+    Args:
+        pred: predicted one-hot encoded mask, shape (num_classes, height, width)
+        target: ground truth one-hot encoded mask, shape (num_classes, height, width)
+
+    Returns:
+        Dice coefficient
+
+    """
+    smooth = 1.
+    pred_flat = pred.view(-1)
+    target_flat = target.view(-1)
+    intersection = (pred_flat * target_flat).sum()
+
+    return 1 - ((2. * intersection + smooth) / (pred_flat.sum() + target_flat.sum() + smooth))
+
+
 def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, truncation_psi=0.7, return_upsampled_featuremaps=False, process_out=True, noise_mode='const'):
     """
     :param g_all: Generator network, consisting of g_mapping and g_synthesis modules

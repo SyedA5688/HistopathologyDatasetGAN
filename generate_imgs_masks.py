@@ -65,7 +65,7 @@ def generate_one_image_mask_pair(idx, g_all, upsamplers, classifier):
     # Save generated masks
     np.save(os.path.join(SAVE_PATH, "multiclass_mask_{}".format(idx)), all_pixel_preds)
     colorized_multiclass_mask = colorize_mask(all_pixel_preds, tma_12_palette)
-    plt.imsave(os.path.join(SAVE_PATH, "multiclass_mask_img_{}.png".format(idx)), colorized_multiclass_mask)
+    plt.imsave(os.path.join(SAVE_PATH, "multiclass_mask_img_{}.jpg".format(idx)), colorized_multiclass_mask)
 
     np.save(os.path.join(SAVE_PATH, "arteriole_mask_{}".format(idx)), arteriole_mask)
     image_path = os.path.join(SAVE_PATH, "arteriole_mask_img_{}.jpg".format(idx))

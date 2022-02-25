@@ -50,7 +50,7 @@ def generate_data(num_sample):
                 img, _ = latent_to_image(g_all, upsamplers, latent, is_w_latent=False, dim=args['featuremaps_dim'][1], truncation_psi=args['truncation'], return_upsampled_featuremaps=False)
 
             img = Image.fromarray(img[0].cpu().numpy(), 'RGB')
-            image_path = os.path.join(args["dataset_save_dir"], "image_%d.png" % i)
+            image_path = os.path.join(args["dataset_save_dir"], "image_%d.jpg" % i)
             img.save(image_path)
 
         latent_cache = np.concatenate(latent_cache, 0)
@@ -67,7 +67,7 @@ def generate_data(num_sample):
                                      truncation_psi=args['truncation'], return_upsampled_featuremaps=False)
 
             img = Image.fromarray(img[0].cpu().numpy(), 'RGB')
-            image_path = os.path.join(reconstruct_save_path, "reconstructed_image_%d.png" % (idx + 1))
+            image_path = os.path.join(reconstruct_save_path, "reconstructed_image_%d.jpg" % (idx + 1))
             img.save(image_path)
 
 

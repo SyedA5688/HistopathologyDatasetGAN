@@ -4,11 +4,12 @@ import argparse
 from random import seed
 
 import torch
+import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 
-from utils.utils import oht_to_scalar, colorize_mask
+from utils.utils import oht_to_scalar, colorize_mask, dice_coefficient
 from utils.data_util import tma_12_palette, tma_12_class
 from pixel_features_dataset import PixelFeaturesDataset
 from networks.pixel_classifier import PixelClassifier
@@ -63,13 +64,15 @@ def test_one_classifier(model_path, data_loader):
     model.to(device)
     model.eval()
 
-    # criterion = nn.CrossEntropyLoss()
     image_end_points = [1024 * i for i in range(1, 37)]
+    ground_truth_mask_list = []
+    predicted_mask_list = []
+    dice_scores = []
+
+    logger = open(os.path.join(SAVE_PATH, "test_accuracy_log.txt"), "w")
+    image_counter = 0
 
     with torch.no_grad():
-        ground_truth_mask_list = []
-        predicted_mask_list = []
-
         ground_truth_mask = torch.zeros((1024, 1024))
         predicted_mask = torch.zeros((1024, 1024))
 
@@ -100,6 +103,14 @@ def test_one_classifier(model_path, data_loader):
                 ground_truth_mask_list.append(np.expand_dims(np.copy(ground_truth_mask), axis=0))
                 predicted_mask_list.append(np.expand_dims(np.copy(predicted_mask), axis=0))
 
+                ground_truth_mask_one_hot = F.one_hot(ground_truth_mask, num_classes=args["num_classes"])
+                predicted_mask_one_hot = F.one_hot(predicted_mask, num_classes=args["num_classes"])
+                dice_coeff = dice_coefficient(ground_truth_mask_one_hot, predicted_mask_one_hot)
+
+                log_string(logger, "Image {} dice score: {}".format(image_counter, dice_coeff))
+                image_counter += 1
+                dice_scores.append(dice_coeff)
+
                 ground_truth_mask = torch.zeros((1024, 1024))
                 predicted_mask = torch.zeros((1024, 1024))
 
@@ -107,8 +118,7 @@ def test_one_classifier(model_path, data_loader):
         predicted_mask_list = np.concatenate(predicted_mask_list, axis=0)
 
     # Print out class-wise and total pixel-level accuracy
-    logger = open(os.path.join(SAVE_PATH, "test_accuracy_log.txt"), "w")
-    log_string(logger, "Class-wise Accuracies for Single Model:")
+    log_string(logger, "\n\nClass-wise Accuracies for Single Model:")
     class_accuracies = []
     for i in range(len(tma_12_class)):
         if class_total_count[i] != 0:
