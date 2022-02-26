@@ -103,11 +103,11 @@ def test_one_classifier(model_path, data_loader):
                 ground_truth_mask_list.append(np.expand_dims(np.copy(ground_truth_mask), axis=0))
                 predicted_mask_list.append(np.expand_dims(np.copy(predicted_mask), axis=0))
 
-                ground_truth_mask_one_hot = F.one_hot(ground_truth_mask, num_classes=args["num_classes"])
-                predicted_mask_one_hot = F.one_hot(predicted_mask, num_classes=args["num_classes"])
+                ground_truth_mask_one_hot = F.one_hot(torch.tensor(ground_truth_mask).long(), num_classes=args["num_classes"])
+                predicted_mask_one_hot = F.one_hot(torch.tensor(predicted_mask).long(), num_classes=args["num_classes"])
                 dice_coeff = dice_coefficient(ground_truth_mask_one_hot, predicted_mask_one_hot)
 
-                log_string(logger, "Image {} dice score: {}".format(image_counter, dice_coeff))
+                log_string(logger, "Image {} dice score: {}".format(image_counter, round(dice_coeff.item(), 5)))
                 image_counter += 1
                 dice_scores.append(dice_coeff)
 
@@ -137,40 +137,19 @@ def test_one_classifier(model_path, data_loader):
 
 
 def main():
-    # test_set = PixelFeaturesDataset(args["dataset_save_dir"], split="test")
-    # test_dataloader = DataLoader(test_set, batch_size=1024, shuffle=False)
+    test_set = PixelFeaturesDataset(args["dataset_save_dir"], split="test")
+    test_dataloader = DataLoader(test_set, batch_size=1024, shuffle=False)
 
-    val_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
-    val_dataloader = DataLoader(val_set, batch_size=1024, shuffle=False)
+    # val_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
+    # val_dataloader = DataLoader(val_set, batch_size=1024, shuffle=False)
 
     split_name = "test"
     ground_truth_mask_list, predicted_mask_list = test_one_classifier(
-        os.path.join(training_run_dir, training_run, "best_model_" + str(0) + "_ep0.pth"), val_dataloader)
+        os.path.join(training_run_dir, training_run, "best_model_" + str(0) + "_ep0.pth"), test_dataloader)
     for idx in range(len(predicted_mask_list)):
         print("Saving predicted mask and ground truth mask for image", idx)
         # all_classifiers_pred_mask_list[idx] is (1, 1, 1024, 1024)
         plot_img_and_colored_mask(predicted_mask_list[idx], ground_truth_mask_list[idx], idx, split_name)
-
-    # Code for ensemble mask prediction
-    # all_classifiers_ground_truth_mask_list = []
-    # all_classifiers_pred_mask_list = []
-    #
-    # for i in range(args["model_num"]):
-    #     ground_truth_mask_list, predicted_mask_list = test_one_classifier(os.path.join(training_run_dir, training_run, "best_model_" + str(i) + ".pth"), args, test_dataloader)
-    #     all_classifiers_ground_truth_mask_list.append(np.expand_dims(ground_truth_mask_list, axis=0))
-    #     all_classifiers_pred_mask_list.append(np.expand_dims(predicted_mask_list, axis=0))
-    #
-    # all_classifiers_ground_truth_mask_list = np.concatenate(all_classifiers_ground_truth_mask_list, axis=0)  # [num_classifiers, num_images, 1024, 1024]
-    # all_classifiers_pred_mask_list = np.concatenate(all_classifiers_pred_mask_list, axis=0)
-    #
-    # # ModeResult is {mode, counts), and mode array is [1,nimgs,h,q] so do stats.mode(array, axis=0)[0][0]
-    # all_classifiers_ground_truth_mask_list = stats.mode(all_classifiers_ground_truth_mask_list, axis=0)[0][0]  # [num_images, 1024, 1024] majority voting mask
-    # all_classifiers_pred_mask_list = stats.mode(all_classifiers_pred_mask_list, axis=0)[0][0]
-    #
-    # for idx in range(len(all_classifiers_pred_mask_list)):
-    #     print("Saving predicted mask and ground truth mask for image", idx)
-    #     # all_classifiers_pred_mask_list[idx] is (1, 1, 1024, 1024)
-    #     plot_img_and_colored_mask(all_classifiers_pred_mask_list[idx], all_classifiers_ground_truth_mask_list[idx], idx, SAVE_PATH, split_name)
 
 
 if __name__ == "__main__":
@@ -184,8 +163,7 @@ if __name__ == "__main__":
 
     training_run_dir = "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/"
     training_run = "0031-TMA_Arteriole_stylegan2_ada"
-    # SAVE_PATH = os.path.join(training_run_dir, training_run, "ensemble_mask_pred")
-    SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_ep0_val_mask_pred")
+    SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_ep0_test_mask_pred")
     if not os.path.exists(SAVE_PATH):
         os.mkdir(SAVE_PATH)
 

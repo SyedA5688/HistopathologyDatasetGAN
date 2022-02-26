@@ -3,14 +3,15 @@ import json
 import argparse
 
 import torch
-import matplotlib.pyplot as plt
 import numpy as np
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
 from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision.models.segmentation import deeplabv3_resnet50
 from torchvision import transforms
 
-from utils.utils import oht_to_scalar, colorize_mask
+from utils.utils import oht_to_scalar, colorize_mask, dice_coefficient
 from utils.data_util import tma_12_palette, tma_12_class
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -97,6 +98,7 @@ def test_one_classifier(model_path, data_loader):
     model.to(device)
     model.eval()
 
+    logger = open(os.path.join(SAVE_PATH, "test_accuracy_log.txt"), "w")
     ground_truth_mask_list = []
     predicted_mask_list = []
 
@@ -122,8 +124,15 @@ def test_one_classifier(model_path, data_loader):
             ground_truth_mask_list = ground_truth.cpu().numpy()
             predicted_mask_list = mask_pred.cpu().numpy()
 
+            for image_idx in range(len(mask_pred)):
+                # Compute and print dice coefficients
+                ground_truth_mask_one_hot = F.one_hot(torch.tensor(ground_truth_mask_list[image_idx]).long(),
+                                                      num_classes=args["num_classes"])
+                predicted_mask_one_hot = F.one_hot(torch.tensor(predicted_mask_list[image_idx]).long(), num_classes=args["num_classes"])
+                dice_coeff = dice_coefficient(ground_truth_mask_one_hot, predicted_mask_one_hot)
+                log_string(logger, "Image {} dice score: {}".format(image_idx, round(dice_coeff.item(), 5)))
+
     # Print out class-wise and total pixel-level accuracy
-    logger = open(os.path.join(SAVE_PATH, "test_accuracy_log.txt"), "w")
     log_string(logger, "Class-wise Accuracies for DeepLabV3 Model:")
     class_accuracies = []
     for i in range(len(tma_12_class)):
