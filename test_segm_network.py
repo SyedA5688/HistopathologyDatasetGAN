@@ -24,54 +24,66 @@ def log_string(logger, str1):
     logger.flush()
 
 
+#class GeneratedImageLabelDataset(Dataset):
+#     def __init__(self, data_path, split="train"):
+#         assert split in ["train", "val", "test"]
+#
+#         self.images = []
+#         self.masks = []
+#
+#         if split == "train":
+#             # all_files = os.listdir(os.path.join(data_path, "artificial_dataset_5000"))
+#             # img_files = [file for file in all_files if "generated_image" in file]
+#
+#             artificial_dataset_path = os.path.join(data_path, "artificial_dataset_5000")
+#             for idx in range(1400):  # len(img_files)
+#                 img_filename = "generated_image_" + str(idx) + ".jpg"
+#                 self.images.append(os.path.join(artificial_dataset_path, img_filename))
+#
+#                 mask = np.load(os.path.join(artificial_dataset_path, "multiclass_mask_" + str(idx) + ".npy"))
+#                 self.masks.append(mask)
+#
+#         elif split == "val":
+#             # Use validation set that was used to train pixel classifier, 6 images
+#             image_idxs = list(range(24, 30))
+#             for idx in image_idxs:
+#                 img_filename = "image_" + str(idx) + ".jpg"
+#                 self.images.append(os.path.join(data_path, img_filename))
+#
+#                 mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
+#                 self.masks.append(mask)
+#
+#         elif split == "test":
+#             # Use test set that was used to train pixel classifier, 6 images
+#             image_idxs = list(range(30, 36))
+#             for idx in image_idxs:
+#                 img_filename = "image_" + str(idx) + ".jpg"
+#                 self.images.append(os.path.join(data_path, img_filename))
+#
+#                 mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
+#                 self.masks.append(mask)
+#
+#     def __len__(self):
+#         return len(self.masks)
+#
+#     def __getitem__(self, index):
+#         img = Image.open(self.images[index])
+#         img = transforms.ToTensor()(img)
+#         mask = self.masks[index]
+#
+#         return img, mask
+
+
 class GeneratedImageLabelDataset(Dataset):
     def __init__(self, data_path, split="train"):
         assert split in ["train", "val", "test"]
-
-        self.images = []
-        self.masks = []
-
-        if split == "train":
-            # all_files = os.listdir(os.path.join(data_path, "artificial_dataset_5000"))
-            # img_files = [file for file in all_files if "generated_image" in file]
-
-            artificial_dataset_path = os.path.join(data_path, "artificial_dataset_5000")
-            for idx in range(1400):  # len(img_files)
-                img_filename = "generated_image_" + str(idx) + ".jpg"
-                self.images.append(os.path.join(artificial_dataset_path, img_filename))
-
-                mask = np.load(os.path.join(artificial_dataset_path, "multiclass_mask_" + str(idx) + ".npy"))
-                self.masks.append(mask)
-
-        elif split == "val":
-            # Use validation set that was used to train pixel classifier, 6 images
-            image_idxs = list(range(24, 30))
-            for idx in image_idxs:
-                img_filename = "image_" + str(idx) + ".jpg"
-                self.images.append(os.path.join(data_path, img_filename))
-
-                mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
-                self.masks.append(mask)
-
-        elif split == "test":
-            # Use test set that was used to train pixel classifier, 6 images
-            image_idxs = list(range(30, 36))
-            for idx in image_idxs:
-                img_filename = "image_" + str(idx) + ".jpg"
-                self.images.append(os.path.join(data_path, img_filename))
-
-                mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
-                self.masks.append(mask)
+        pass  # ToDo: load Arteriole masks only, val and test set will be from real TMA Arteriole annotations
 
     def __len__(self):
-        return len(self.masks)
+        pass
 
     def __getitem__(self, index):
-        img = Image.open(self.images[index])
-        img = transforms.ToTensor()(img)
-        mask = self.masks[index]
-
-        return img, mask
+        pass
 
 
 def plot_img_and_colored_mask(mask, ground_truth_img, image_num, split):
@@ -126,9 +138,8 @@ def test_one_classifier(model_path, data_loader):
 
             for image_idx in range(len(mask_pred)):
                 # Compute and print dice coefficients
-                ground_truth_mask_one_hot = F.one_hot(torch.tensor(ground_truth_mask_list[image_idx]).long(),
-                                                      num_classes=args["num_classes"])
-                predicted_mask_one_hot = F.one_hot(torch.tensor(predicted_mask_list[image_idx]).long(), num_classes=args["num_classes"])
+                ground_truth_mask_one_hot = F.one_hot(ground_truth[image_idx].long(), num_classes=args["num_classes"])
+                predicted_mask_one_hot = F.one_hot(mask_pred[image_idx].long(), num_classes=args["num_classes"])
                 dice_coeff = dice_coefficient(ground_truth_mask_one_hot, predicted_mask_one_hot)
                 log_string(logger, "Image {} dice score: {}".format(image_idx, round(dice_coeff.item(), 5)))
 

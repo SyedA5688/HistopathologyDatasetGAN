@@ -65,7 +65,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         for batch_idx, (data, ground_truth) in enumerate(val_loader):
             data, ground_truth = data.to(device), ground_truth.long().to(device)
 
-            pred_logits = model(data[:, :5888])
+            pred_logits = model(data)
             loss = criterion(pred_logits, ground_truth)
             acc = multi_acc(pred_logits, ground_truth)
             pixel_preds = oht_to_scalar(pred_logits)
@@ -78,6 +78,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
 
             val_total_loss += loss.item()
             summed_acc += acc.item()
+            # ToDo: implement dice score in validation set
 
         ############################
         # Display validation results
@@ -127,7 +128,7 @@ def train():
     for model_num in range(args["model_num"]):
         log_string("Training classifier #" + str(model_num) + "\n")
         gc.collect()
-        classifier = PixelClassifier(num_classes=args["num_classes"], dim=5888)  # ToDo: replaced args['featuremaps_dim'][-1]
+        classifier = PixelClassifier(num_classes=args["num_classes"], dim=args['featuremaps_dim'][-1])
         classifier.init_weights()
         log_string("Model architecture:\n" + str(classifier) + "\n")
 
@@ -136,7 +137,6 @@ def train():
         # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
         optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
 
-        # Create datasets and dataloaders, specific for this model. Random selection of pixel features
         training_set = PixelFeaturesDataset(args["dataset_save_dir"], split="train")
         validation_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
 
@@ -145,11 +145,11 @@ def train():
 
         log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
         sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
-        # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
-        sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
         train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler)
-        # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True)
+        # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=False)  # ToDo: Overfit one batch
         val_loader = DataLoader(validation_set, batch_size=args['batch_size'], shuffle=False)
 
         # Training loop
@@ -169,11 +169,13 @@ def train():
             summed_acc = 0.
 
             for batch_idx, (data, ground_truth) in enumerate(train_loader):
+                if batch_idx % (len(train_loader) // 5) == 0:
+                    print("On batch", batch_idx)
                 # Move data and ground truth labels to cuda device, change ground truth labels to dtype long (integers)
                 data, ground_truth = data.to(device), ground_truth.long().to(device)  # data is [b, 6080], ground_truth is [64,]
                 optimizer.zero_grad()
 
-                pred_logits = classifier(data[:, :5888])  # pred shape [b, 7]  # 7 class output probabilities
+                pred_logits = classifier(data)  # pred shape [b, 7]  # 7 class output probabilities
                 loss = criterion(pred_logits, ground_truth)
                 acc = multi_acc(pred_logits, ground_truth)
 

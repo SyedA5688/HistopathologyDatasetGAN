@@ -26,9 +26,9 @@ import numpy as np
 import torch.nn as nn
 from PIL import Image
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-# device = 'cpu'
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 class Interpolate(nn.Module):
     def __init__(self, size, mode):
@@ -98,7 +98,7 @@ def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, tru
     with torch.no_grad():
         if is_w_latent:
             w_latents = latents
-            images, affine_layers = g_all.synthesis(w_latents)
+            images, affine_layers = g_all.synthesis(w_latents, force_fp32=True)
         else:
             # Pass conditioning label here
             images, affine_layers = g_all(latents, c=0, truncation_psi=truncation_psi, noise_mode=noise_mode)
@@ -109,7 +109,9 @@ def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, tru
 
         upsampled_featuremaps = None
         if return_upsampled_featuremaps:
-            upsampled_featuremaps = torch.FloatTensor(1, num_features, dim, dim).to(device)
+            upsampled_featuremaps = torch.HalfTensor(1, num_features, dim, dim)
+            # upsampled_featuremaps = torch.Tensor(1, num_features, dim, dim)
+            upsampled_featuremaps.to(device)
             start_channel_index = 0
             for i in range(len(affine_layers)):
                 len_channel = affine_layers[i].shape[1]

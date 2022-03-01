@@ -12,7 +12,7 @@ from torch.optim import Adam
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from utils.visualization_utils import plot_loss_curves
-from torchvision.models.segmentation import deeplabv3_resnet50
+from torchvision.models.segmentation import deeplabv3_resnet50, fcn_resnet50
 
 chosen_seed = 0
 seed(chosen_seed)
@@ -24,54 +24,65 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
+# class GeneratedImageLabelDataset(Dataset):
+#     def __init__(self, data_path, split="train"):
+#         assert split in ["train", "val", "test"]
+#
+#         self.images = []
+#         self.masks = []
+#
+#         if split == "train":
+#             # all_files = os.listdir(os.path.join(data_path, "artificial_dataset_5000"))
+#             # img_files = [file for file in all_files if "generated_image" in file]
+#
+#             artificial_dataset_path = os.path.join(data_path, "artificial_dataset_5000")
+#             for idx in range(1400):  # len(img_files)
+#                 img_filename = "generated_image_" + str(idx) + ".jpg"
+#                 self.images.append(os.path.join(artificial_dataset_path, img_filename))
+#
+#                 mask = np.load(os.path.join(artificial_dataset_path, "multiclass_mask_" + str(idx) + ".npy"))
+#                 self.masks.append(mask)
+#
+#         elif split == "val":
+#             # Use validation set that was used to train pixel classifier, 6 images
+#             image_idxs = list(range(24, 30))
+#             for idx in image_idxs:
+#                 img_filename = "image_" + str(idx) + ".jpg"
+#                 self.images.append(os.path.join(data_path, img_filename))
+#
+#                 mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
+#                 self.masks.append(mask)
+#
+#         elif split == "test":
+#             # Use test set that was used to train pixel classifier, 6 images
+#             image_idxs = list(range(30, 36))
+#             for idx in image_idxs:
+#                 img_filename = "image_" + str(idx) + ".jpg"
+#                 self.images.append(os.path.join(data_path, img_filename))
+#
+#                 mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
+#                 self.masks.append(mask)
+#
+#     def __len__(self):
+#         return len(self.masks)
+#
+#     def __getitem__(self, index):
+#         img = Image.open(self.images[index])
+#         img = transforms.ToTensor()(img)
+#         mask = self.masks[index]
+#
+#         return img, mask
+
 class GeneratedImageLabelDataset(Dataset):
     def __init__(self, data_path, split="train"):
         assert split in ["train", "val", "test"]
-
-        self.images = []
-        self.masks = []
-
-        if split == "train":
-            # all_files = os.listdir(os.path.join(data_path, "artificial_dataset_5000"))
-            # img_files = [file for file in all_files if "generated_image" in file]
-
-            artificial_dataset_path = os.path.join(data_path, "artificial_dataset_5000")
-            for idx in range(1400):  # len(img_files)
-                img_filename = "generated_image_" + str(idx) + ".jpg"
-                self.images.append(os.path.join(artificial_dataset_path, img_filename))
-
-                mask = np.load(os.path.join(artificial_dataset_path, "multiclass_mask_" + str(idx) + ".npy"))
-                self.masks.append(mask)
-
-        elif split == "val":
-            # Use validation set that was used to train pixel classifier, 6 images
-            image_idxs = list(range(24, 30))
-            for idx in image_idxs:
-                img_filename = "image_" + str(idx) + ".jpg"
-                self.images.append(os.path.join(data_path, img_filename))
-
-                mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
-                self.masks.append(mask)
-
-        elif split == "test":
-            # Use test set that was used to train pixel classifier, 6 images
-            image_idxs = list(range(30, 36))
-            for idx in image_idxs:
-                img_filename = "image_" + str(idx) + ".jpg"
-                self.images.append(os.path.join(data_path, img_filename))
-
-                mask = np.load(os.path.join(data_path, "image_" + str(idx) + "_mask.npy"))
-                self.masks.append(mask)
+        pass  # ToDo: load Arteriole masks only, val and test set will be from real TMA Arteriole annotations
 
     def __len__(self):
-        return len(self.masks)
+        pass
 
     def __getitem__(self, index):
-        img = Image.open(self.images[index])
-        img = transforms.ToTensor()(img)
-        mask = self.masks[index]
-
-        return img, mask
+        pass
 
 
 def log_string(str1):
@@ -100,7 +111,8 @@ def validation(model, val_loader, criterion, lowest_val_loss):
         return_loss = val_avg_loss if val_avg_loss < lowest_val_loss else lowest_val_loss
         log_string('Validation Avg Batch Loss: {:.8f} {}'.format(float(val_avg_loss), improved_str) + "\n")
 
-        if improved:  # ToDo: Implement accuracy in validation set, judge improved based on validation loss
+        if improved:  # ToDo: Implement pixel-wise accuracy and dice score metrics in validation set
+            # ToDo: Implement tensorboard logging instead of plotting loss and accuracy curves manually
             save_name = "best_deeplab_model.pth"
             torch.save({
                 'model_state_dict': model.state_dict(),
@@ -164,7 +176,8 @@ def main():
         log_string(key + ": " + str(args[key]))
     log_string("\n")
 
-    model = deeplabv3_resnet50(pretrained=False, num_classes=args["num_classes"])
+    # model = deeplabv3_resnet50(pretrained=False, num_classes=args["num_classes"])
+    model = fcn_resnet50(pretrained=False, num_classes=args["num_classes"])
     model = nn.DataParallel(model).to(device)
 
     train_dataset = GeneratedImageLabelDataset(data_path=args["dataset_dir"], split="train")
@@ -201,7 +214,7 @@ if __name__ == '__main__':
         print('Experiment folder created at: %s' % SAVE_PATH)
 
     os.system('cp {} {}'.format(opts.experiment, SAVE_PATH))
-    os.system("cp train_deeplab.py {}".format(os.path.join(SAVE_PATH, "python_file_saves")))
+    os.system("cp train_segm_network.py {}".format(os.path.join(SAVE_PATH, "python_file_saves")))
 
     logger = open(os.path.join(SAVE_PATH, "training_log.txt"), "w")
     main()

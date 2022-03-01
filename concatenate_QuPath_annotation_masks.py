@@ -6,22 +6,26 @@ import argparse
 import numpy as np
 from PIL import Image
 
-from utils.data_util import tma_12_class
+from utils.data_util import tma_4096_crop_class
 
 
 def get_segmentation_class_numbers():
     seg_classes_dict = {}
-    for idx, annotation_class_obj in enumerate(tma_12_class):
+    for idx, annotation_class_obj in enumerate(tma_4096_crop_class):
         seg_classes_dict[annotation_class_obj] = idx
 
     return seg_classes_dict
 
 
 def get_annotation_mask_filenames_for_each_img(image_path, annotation_masks_path):
+    class_overlay_order = ["Whitespace", "Cortex", "Glomerulus", "Arteriole", "Artery"]
     img_annot_mask_fnames = {}
-    for file in glob.glob(image_path + "*.jpg"):
+    for file in glob.glob(os.path.join(image_path, "*.png")):
         img_filename = file.split("/")[-1]
-        img_annot_mask_fnames[img_filename] = [fname for fname in os.listdir(annotation_masks_path) if img_filename in fname]
+        fname_list = []
+        for class_name in class_overlay_order:
+            fname_list += [fname for fname in os.listdir(annotation_masks_path) if img_filename in fname and class_name in fname]
+        img_annot_mask_fnames[img_filename] = fname_list
 
     return img_annot_mask_fnames
 
@@ -32,9 +36,9 @@ def reconstruct_mask_for_one_image(image_path, image_name, annotation_masks_path
     img_w, img_h = img.size
 
     mask_file_list = img_annotation_mask_fnames[image_name]
-    concatenated_mask = np.full((img_h, img_w), -1)  # initialize with -1s so no confusion with
+    concatenated_mask = np.full((img_h, img_w), 0)  # initialize with 0s for whitespace
     for annotation_mask_file in mask_file_list:
-        mask_class_name = annotation_mask_file.split(".jpg_")[-1].split("_(")[0]
+        mask_class_name = annotation_mask_file.split(".png_")[-1].split("_(")[0]
         if mask_class_name not in seg_classes:
             continue
         mask_coords_str = annotation_mask_file.split("(1.00,")[-1].split(")-mask")[0]
@@ -74,18 +78,16 @@ def reconstruct_mask_for_one_image(image_path, image_name, annotation_masks_path
         concatenated_mask[mask_start_y:mask_start_y + mask_h, mask_start_x:mask_start_x + mask_w] = np.where(mask, annotation_class_idx, concatenated_mask[mask_start_y:mask_start_y + mask_h, mask_start_x:mask_start_x + mask_w])
         # Note: last annotation overlayed on top has priority if annotation classes overlap on an image.
 
-    # Create Interstitial space mask by turning any pixels that are still value 0 to 12 (index for interstitial space class)
-    interstitial_mask = concatenated_mask == -1
-    concatenated_mask = np.where(interstitial_mask, seg_classes["Interstitial Space"], concatenated_mask)
+    # Create Cortical Tubulointerstitium mask
+    interstitial_mask = concatenated_mask == 1
+    concatenated_mask = np.where(interstitial_mask, seg_classes["Cortical Tubulointerstitium"], concatenated_mask)
     return concatenated_mask
-
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--experiment', type=str,
-                        default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
-    parser.add_argument('--num_sample', type=int, default=100)
+                        default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
 
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
@@ -94,10 +96,11 @@ def main():
     img_annotation_mask_fnames = get_annotation_mask_filenames_for_each_img(args["dataset_save_dir"], args["qupath_annotation_mask_dir"])
 
     for file in os.listdir(args["dataset_save_dir"]):
-        if file.split(".")[-1] == "jpg":
+        if file.split(".")[-1] == "png":
+            print("Processing file", file)
             concat_mask = reconstruct_mask_for_one_image(args["dataset_save_dir"], file, args["qupath_annotation_mask_dir"], img_annotation_mask_fnames, seg_classes)
 
-            np.save(os.path.join(args["dataset_save_dir"], file.split(".jpg")[0] + "_mask.npy"), concat_mask)
+            np.save(os.path.join(args["dataset_save_dir"], file.split(".png")[0] + "_mask.npy"), concat_mask)
 
     print("Done.")
 
@@ -124,7 +127,7 @@ import matplotlib.patches as mpatches
 
 def plot_img_and_colored_mask(image_num):
     mask = np.load('/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/generated_datasets/TMA_1024_Arteriole2/image_{}_mask.npy'.format(image_num))
-    img = Image.open('/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/generated_datasets/TMA_1024_Arteriole2/image_{}.jpg'.format(image_num))
+    img = Image.open('/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/generated_datasets/TMA_1024_Arteriole2/image_{}.png'.format(image_num))
     colorized_mask = colorize_mask(mask, tma_12_palette)
     # values = np.unique(colorized_mask)
     # im = plt.imshow(colorized_mask, interpolation=None, vmin=0, vmax=1)

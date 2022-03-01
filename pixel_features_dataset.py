@@ -13,10 +13,6 @@ class PixelFeaturesDataset(Dataset):
 
             split: dataset split to create for this dataset. Possible values are train, val, and test
 
-            val_fold: integer in range [0,4] indicating which group of four images in evaluation set will be
-                        the validation set. For example, if images 1-16 are in training set and val_fold is
-                        given as 1, then images 17-20 will be validation set, and 21-36 will be test set.
-
         Function:
             Basic details:
                 This dataloader loads pixel-level features for an image (1 pixel -> np array of (1, 6080)
@@ -43,11 +39,11 @@ class PixelFeaturesDataset(Dataset):
 
                 The net effect of this memory-consumption-reduction scheme is that training is slower due to
                 constantly loading things from disk, which is the tradeoff accepted in order to not require
-                25.5 * 36 GB of RAM meory in order to run training.
+                25.5 * 36 GB of RAM memory in order to run training.
 
             Regarding validation folds, this dataset assumes around 16-30 images for training, and then
-            another 20 images for validation and test (combined together called evaluation set). The
-            evaluation set will be split into five folds of 4 images, giving 5-fold cross validation.
+            another 20 images for validation and test (together called evaluation set). The evaludation
+            set will be split into five folds of 4 images, giving 5-fold cross validation.
 
             Around 627 GB of cache/buffer is being used up because of OS loading chunks from disk
             and caching them while dataloader is calling for shuffled indices -
@@ -58,14 +54,14 @@ class PixelFeaturesDataset(Dataset):
         # assert val_fold in [0, 1, 2, 3, 4], "Unknown validation fold specified, must be 0-4"
 
         if split == "train":
-            # idxs = list(range(16))
-            idxs = list(range(24))
+            idxs = list(range(16))
+            # idxs = list(range(24))
         elif split == "val":
-            # idxs = list(range(16, 20))
-            idxs = list(range(24, 30))
+            idxs = list(range(16, 20))
+            # idxs = list(range(24, 30))
         elif split == "test":
-            # idxs = list(range(20, 36))
-            idxs = list(range(30, 36))
+            idxs = list(range(20, 36))
+            # idxs = list(range(30, 36))
         else:
             idxs = None
             assert "Unknown split for pixel feature dataloader."
@@ -98,13 +94,13 @@ class PixelFeaturesDataset(Dataset):
             self.ground_truth[idx] = image_pixel_label_list  # match pixel features
 
     def __len__(self):
-        return self.total_size
+        return self.total_size  # ToDo: Overfit 1 batch, 32768
 
     def __getitem__(self, index):
         image_idx = index // self.img_pixel_feat_len
         pixel_feat_idx = index % self.img_pixel_feat_len
 
-        pixel_feat = self.features[image_idx][pixel_feat_idx]
+        pixel_feat = self.features[image_idx][pixel_feat_idx, 5120:]  # ToDo: Running reduced features
         ground_truth_class = self.ground_truth[image_idx][pixel_feat_idx]
 
         # returns shapes (6080,) and (1,)

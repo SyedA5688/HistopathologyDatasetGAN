@@ -1,7 +1,7 @@
 import os
 import json
 import argparse
-
+import functools
 
 import torch
 import numpy as np
@@ -11,8 +11,9 @@ from utils.utils import latent_to_image
 
 np.random.seed(0)
 torch.manual_seed(0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 
 def create_pixel_classifier_compressed_dataset(data_path, g_all, upsamplers, save_path):
@@ -42,6 +43,7 @@ def dataset_split_helper(latent_np, img_idx, g_all, upsamplers, save_path, save_
         img, upsampled_featmap = latent_to_image(g_all, upsamplers, latent, is_w_latent=False,
                                                  dim=args['featuremaps_dim'][1], truncation_psi=args['truncation'],
                                                  return_upsampled_featuremaps=True)
+    # print("Upsampled featuremap shape:", upsampled_featmap.shape)
     b, ch, h, w = upsampled_featmap.shape  # [1, 6080, 1024, 1024]
 
     pixel_features_list = []
@@ -51,7 +53,7 @@ def dataset_split_helper(latent_np, img_idx, g_all, upsamplers, save_path, save_
 
     pixel_features_list = torch.cat(pixel_features_list, dim=0)  # [1024*1024, 6080]
 
-    print(pixel_features_list.shape)
+    print("Image {}".format(img_idx), pixel_features_list.shape, "\n")
     np.save(os.path.join(save_path, save_name), pixel_features_list)
 
 
@@ -68,6 +70,11 @@ reloaded_pixel_data.shape
 def main():
     # Load StyleGAN checkpoint
     g_all, avg_latent = load_stylegan2_ada(args)
+    g_all.to(device)
+
+    # Line for inference on CPU
+    g_all = g_all.float()
+    g_all.forward = functools.partial(g_all.forward, force_fp32=True)
     upsamplers = get_upsamplers(args)
 
     # Create dataset
@@ -76,7 +83,7 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
+    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
 
