@@ -34,18 +34,18 @@ def log_string(str1):
     logger.flush()
 
 
-class CustomWeightedRandomSampler(WeightedRandomSampler):
-    """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def __iter__(self):
-        rand_tensor = np.random.choice(range(0, len(self.weights)),
-                                       size=self.num_samples,
-                                       p=self.weights.numpy() / torch.sum(self.weights).numpy(),
-                                       replace=self.replacement)
-        rand_tensor = torch.from_numpy(rand_tensor)
-        return iter(rand_tensor.tolist())
+# class CustomWeightedRandomSampler(WeightedRandomSampler):
+#     """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#
+#     def __iter__(self):
+#         rand_tensor = np.random.choice(range(0, len(self.weights)),
+#                                        size=self.num_samples,
+#                                        p=self.weights.numpy() / torch.sum(self.weights).numpy(),
+#                                        replace=self.replacement)
+#         rand_tensor = torch.from_numpy(rand_tensor)
+#         return iter(rand_tensor.tolist())
 
 
 def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc, epoch_num=None):
@@ -148,7 +148,7 @@ def train():
         sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
         # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
-        train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler)
+        train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler, num_workers=4, pin_memory=True)
         # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=False)  # ToDo: Overfit one batch
         val_loader = DataLoader(validation_set, batch_size=args['batch_size'], shuffle=False)
 
@@ -169,7 +169,7 @@ def train():
             summed_acc = 0.
 
             for batch_idx, (data, ground_truth) in enumerate(train_loader):
-                if batch_idx % (len(train_loader) // 5) == 0:
+                if batch_idx % 128 == 0:  # 2048 batches total with batch size 8192, 16 image training set
                     print("On batch", batch_idx)
                 # Move data and ground truth labels to cuda device, change ground truth labels to dtype long (integers)
                 data, ground_truth = data.to(device), ground_truth.long().to(device)  # data is [b, 6080], ground_truth is [64,]

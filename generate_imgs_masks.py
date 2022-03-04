@@ -32,7 +32,7 @@ def generate_one_image_mask_pair(idx, g_all, upsamplers, classifier):
     latent_np = torch.from_numpy(latent_np).to(device)
     img, upsampled_featmap = latent_to_image(g_all, upsamplers, latent_np, is_w_latent=False,
                                              dim=args['featuremaps_dim'][1], truncation_psi=args['truncation'],
-                                             return_upsampled_featuremaps=True)
+                                             return_upsampled_featuremaps=True, device=device)
     # Save generated image
     img = Image.fromarray(img[0].cpu().numpy(), 'RGB')
     image_path = os.path.join(SAVE_PATH, "generated_image_{}.jpg".format(idx))

@@ -1,0 +1,14 @@
+4 Stains:
+Stain 1 (H&E - light purple/pink)
+- lighter: Image 0, 1
+
+Stain 2 (slightly darker purple)
+-
+
+
+Stain 3 (Jones - violet and black)
+- Image 5, 8, 9, 61, 83, 134, 154, 228, 359, 383,
+
+
+Stain 4 (Trichrome - light red)
+

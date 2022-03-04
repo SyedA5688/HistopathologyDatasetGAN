@@ -156,13 +156,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--experiment', type=str,
                         default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
-    parser.add_argument('--num_sample', type=int, default=100)
 
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
 
     training_run_dir = "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/"
-    training_run = "0031-TMA_Arteriole_stylegan2_ada"
+    training_run = "0032-TMA_Arteriole_stylegan2_ada"
     SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_ep0_test_mask_pred")
     if not os.path.exists(SAVE_PATH):
         os.mkdir(SAVE_PATH)

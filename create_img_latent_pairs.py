@@ -41,13 +41,13 @@ def generate_data(num_sample):
 
             if i == 0:
                 latent = avg_latent.to(device)
-                img, _ = latent_to_image(g_all, upsamplers, latent, is_w_latent=True, dim=args['featuremaps_dim'][1], return_upsampled_featuremaps=False)
+                img, _ = latent_to_image(g_all, upsamplers, latent, is_w_latent=True, dim=args['featuremaps_dim'][1], return_upsampled_featuremaps=False, device=device)
             else:
                 # Use index as random seed, for reproducible generation
                 latent_np = np.random.RandomState(i).randn(1, g_all.z_dim)
                 latent_cache.append(np.copy(latent_np))
                 latent = torch.from_numpy(latent_np).to(device)
-                img, _ = latent_to_image(g_all, upsamplers, latent, is_w_latent=False, dim=args['featuremaps_dim'][1], truncation_psi=args['truncation'], return_upsampled_featuremaps=False)
+                img, _ = latent_to_image(g_all, upsamplers, latent, is_w_latent=False, dim=args['featuremaps_dim'][1], truncation_psi=args['truncation'], return_upsampled_featuremaps=False, device=device)
 
             img = Image.fromarray(img[0].cpu().numpy(), 'RGB')
             image_path = os.path.join(args["dataset_save_dir"], "image_%d.jpg" % i)

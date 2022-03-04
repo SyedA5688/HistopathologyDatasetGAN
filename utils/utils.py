@@ -20,15 +20,11 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-import os
 import torch
 import numpy as np
 import torch.nn as nn
 from PIL import Image
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = 'cpu'
 
 class Interpolate(nn.Module):
     def __init__(self, size, mode):
@@ -82,7 +78,7 @@ def dice_coefficient(pred, target):
     return 1 - ((2. * intersection + smooth) / (pred_flat.sum() + target_flat.sum() + smooth))
 
 
-def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, truncation_psi=0.7, return_upsampled_featuremaps=False, process_out=True, noise_mode='const'):
+def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, truncation_psi=0.7, return_upsampled_featuremaps=False, process_out=True, noise_mode='const', device='cuda'):
     """
     :param g_all: Generator network, consisting of g_mapping and g_synthesis modules
     :param upsamplers: list of upsampling layers
@@ -104,18 +100,17 @@ def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, tru
             images, affine_layers = g_all(latents, c=0, truncation_psi=truncation_psi, noise_mode=noise_mode)
 
         num_features = 0
-        for item in affine_layers:
-            num_features += item.shape[1]
+        for idx in range(12, len(affine_layers)):  # 22 conv outputs for TMA_4096
+            num_features += affine_layers[idx].shape[1]
 
         upsampled_featuremaps = None
         if return_upsampled_featuremaps:
             upsampled_featuremaps = torch.HalfTensor(1, num_features, dim, dim)
-            # upsampled_featuremaps = torch.Tensor(1, num_features, dim, dim)
             upsampled_featuremaps.to(device)
             start_channel_index = 0
-            for i in range(len(affine_layers)):
-                len_channel = affine_layers[i].shape[1]
-                upsampled_featuremaps[:, start_channel_index:start_channel_index + len_channel] = upsamplers[i](affine_layers[i])
+            for idx in range(12, len(affine_layers)):
+                len_channel = affine_layers[idx].shape[1]
+                upsampled_featuremaps[:, start_channel_index:start_channel_index + len_channel] = upsamplers[idx](affine_layers[idx])
                 start_channel_index += len_channel
 
             upsampled_featuremaps = upsampled_featuremaps.cpu()
