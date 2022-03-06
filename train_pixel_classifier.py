@@ -3,17 +3,19 @@ import gc
 import json
 import time
 import argparse
+from statistics import mean
 from random import seed
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
+from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, WeightedRandomSampler
 import numpy as np
 
-from utils.utils import multi_acc, oht_to_scalar, EarlyStopping
-from utils.data_util import tma_12_class
-from utils.visualization_utils import plot_loss_curves, plot_acc_curves
+from utils.utils import multi_acc, oht_to_scalar, EarlyStopping, dice_coefficient
+from utils.data_util import tma_4096_crop_class
 from networks.pixel_classifier import PixelClassifier
 from pixel_features_dataset import PixelFeaturesDataset
 
@@ -34,36 +36,39 @@ def log_string(str1):
     logger.flush()
 
 
-# class CustomWeightedRandomSampler(WeightedRandomSampler):
-#     """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#
-#     def __iter__(self):
-#         rand_tensor = np.random.choice(range(0, len(self.weights)),
-#                                        size=self.num_samples,
-#                                        p=self.weights.numpy() / torch.sum(self.weights).numpy(),
-#                                        replace=self.replacement)
-#         rand_tensor = torch.from_numpy(rand_tensor)
-#         return iter(rand_tensor.tolist())
+class CustomWeightedRandomSampler(WeightedRandomSampler):
+    """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __iter__(self):
+        rand_tensor = np.random.choice(range(0, len(self.weights)),
+                                       size=self.num_samples,
+                                       p=self.weights.numpy() / torch.sum(self.weights).numpy(),
+                                       replace=self.replacement)
+        rand_tensor = torch.from_numpy(rand_tensor)
+        return iter(rand_tensor.tolist())
 
 
-def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc, epoch_num=None):
+def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc, highest_val_dice, epoch_num):
     with torch.no_grad():
         model.eval()
-
         ################################
         # Evaluate on validation dataset
         ################################
         val_total_loss = 0.
         summed_acc = 0.
-        # Consider saving produced mask at every val epoch, or when validation improves
 
-        class_correct_count = [0 for _ in range(len(tma_12_class))]
-        class_total_count = [0 for _ in range(len(tma_12_class))]
+        image_end_points = [args["featuremaps_dim"][1] * i for i in range(1, 66)]
+        class_correct_count = [0 for _ in range(len(tma_4096_crop_class))]
+        class_total_count = [0 for _ in range(len(tma_4096_crop_class))]
+
+        ground_truth_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
+        predicted_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
+        dice_scores = []
 
         for batch_idx, (data, ground_truth) in enumerate(val_loader):
-            data, ground_truth = data.to(device), ground_truth.long().to(device)
+            data, ground_truth = data.float().to(device), ground_truth.long().to(device)
 
             pred_logits = model(data)
             loss = criterion(pred_logits, ground_truth)
@@ -78,13 +83,26 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
 
             val_total_loss += loss.item()
             summed_acc += acc.item()
-            # ToDo: implement dice score in validation set
+
+            ground_truth_mask[batch_idx % args["featuremaps_dim"][1]] = ground_truth
+            predicted_mask[batch_idx % args["featuremaps_dim"][1]] = pixel_preds
+
+            if (batch_idx + 1) in image_end_points:
+                ground_truth_mask_one_hot = F.one_hot(ground_truth_mask.long(), num_classes=args["num_classes"])
+                predicted_mask_one_hot = F.one_hot(predicted_mask.long(), num_classes=args["num_classes"])
+
+                dice_coeff = dice_coefficient(ground_truth_mask_one_hot, predicted_mask_one_hot)
+                dice_scores.append(dice_coeff)
+
+                ground_truth_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
+                predicted_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
 
         ############################
         # Display validation results
         ############################
         val_avg_loss = val_total_loss / (batch_idx + 1)
         val_avg_acc = summed_acc / (batch_idx + 1)
+        val_avg_dice_coeff = mean(dice_scores)
 
         if val_avg_acc > highest_val_acc:  # val_avg_loss < lowest_val_loss or
             improved, improved_str = True, "(improved accuracy or val loss)"
@@ -93,20 +111,21 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
 
         return_loss = val_avg_loss if val_avg_loss < lowest_val_loss else lowest_val_loss
         return_acc = val_avg_acc if val_avg_acc > highest_val_acc else highest_val_acc
+        return_dice = val_avg_dice_coeff if val_avg_dice_coeff > highest_val_dice else highest_val_dice
 
-        log_string('Validation Avg Batch Acc: {:.4f}, Validation Avg Batch Loss: {:.8f} {}'.format(float(val_avg_acc), float(val_avg_loss), improved_str) + "\n")
+        log_string('Validation: Avg Dice Coefficient: {:.4f}, Avg Batch Acc: {:.4f}, Validation Avg Batch Loss: {:.8f} {}'.format(float(val_avg_dice_coeff), float(val_avg_acc), float(val_avg_loss), improved_str) + "\n")
 
         # Print out class-wise and total pixel-level accuracy
         log_string("Validation Class-wise Accuracies for Single Model:")
         class_accuracies = []
-        for i in range(len(tma_12_class)):
+        for i in range(len(tma_4096_crop_class)):
             if class_total_count[i] != 0:
                 class_accuracies.append(class_correct_count[i] / class_total_count[i])
             else:
                 class_accuracies.append(-1)  # Not applicable, 0 pixels of this class in test set
 
-        for i in range(len(tma_12_class)):
-            log_string(tma_12_class[i] + " Accuracy: " + str(round(class_accuracies[i], 5)))
+        for i in range(len(tma_4096_crop_class)):
+            log_string(tma_4096_crop_class[i] + " Accuracy: " + str(round(class_accuracies[i], 5)))
         log_string("\n")
 
         ####################################
@@ -114,13 +133,17 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         ####################################
         if improved:
             # Overwrite best saved model each time, only keep best model
-            save_name = "best_model_" + str(model_num) + ".pth" if epoch_num is None else "best_model_" + str(model_num) + "_ep" + str(epoch_num) + ".pth"
+            save_name = "best_model_{}.pth".format(model_num) if epoch_num is None else "best_model_{}_ep{}.pth".format(model_num, epoch_num)
             torch.save({
                 'model_state_dict': model.state_dict(),
                 'validation_loss': val_avg_loss
             }, os.path.join(SAVE_PATH, save_name))
 
-        return val_avg_loss, return_loss, val_avg_acc, return_acc, improved
+        tf_writer.add_scalar("Loss/val", val_avg_loss, epoch_num)
+        tf_writer.add_scalar("Accuracy/val", val_avg_acc, epoch_num)
+        tf_writer.add_scalar("Dice/val", val_avg_dice_coeff, epoch_num)
+
+        return val_avg_loss, return_loss, return_acc, return_dice, improved
 
 
 def train():
@@ -134,8 +157,8 @@ def train():
 
         classifier = nn.DataParallel(classifier).to(device)
         criterion = nn.CrossEntropyLoss()  # label_smoothing=0.5
-        # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])
-        optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])
+        # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])  # lr 0.05
+        optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])  # lr 0.001
 
         training_set = PixelFeaturesDataset(args["dataset_save_dir"], split="train")
         validation_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
@@ -145,21 +168,18 @@ def train():
 
         log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
         sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
-        sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
-        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
-        train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler, num_workers=4, pin_memory=True)
-        # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=False)  # ToDo: Overfit one batch
-        val_loader = DataLoader(validation_set, batch_size=args['batch_size'], shuffle=False)
+        train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler, num_workers=16, pin_memory=True)
+        # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True, pin_memory=True)
+        val_loader = DataLoader(validation_set, batch_size=args['featuremaps_dim'][1], shuffle=False)
 
         # Training loop
-        lowest_validation_loss = 10000000
-        lowest_train_loss = 10000000
-        highest_val_acc = 0
-        train_losses.clear()
-        val_losses.clear()
-        train_acc_list.clear()
-        val_acc_list.clear()
+        lowest_validation_loss = 10000000.
+        lowest_train_loss = 10000000.
+        highest_val_acc = 0.
+        highest_val_dice = 0.
         early_stopper = EarlyStopping(patience=args["early_stopping_patience"], min_delta=0.005)
 
         for epoch in range(args["epochs"]):
@@ -169,10 +189,9 @@ def train():
             summed_acc = 0.
 
             for batch_idx, (data, ground_truth) in enumerate(train_loader):
-                if batch_idx % 128 == 0:  # 2048 batches total with batch size 8192, 16 image training set
-                    print("On batch", batch_idx)
                 # Move data and ground truth labels to cuda device, change ground truth labels to dtype long (integers)
-                data, ground_truth = data.to(device), ground_truth.long().to(device)  # data is [b, 6080], ground_truth is [64,]
+                # data is [b, 6128], ground_truth is [64,]
+                data, ground_truth = data.float().to(device), ground_truth.long().to(device)
                 optimizer.zero_grad()
 
                 pred_logits = classifier(data)  # pred shape [b, 7]  # 7 class output probabilities
@@ -186,10 +205,10 @@ def train():
                 optimizer.step()
 
             # Calculate average epoch loss for training set, log losses
-            train_avg_loss = total_train_loss / (batch_idx + 1)  # Divide by # of batches
-            train_avg_acc = summed_acc / (batch_idx + 1)
-            train_losses.append(float(train_avg_loss))
-            train_acc_list.append(float(train_avg_acc))
+            train_avg_loss = total_train_loss / len(train_loader)
+            train_avg_acc = summed_acc / len(train_loader)
+            tf_writer.add_scalar("Loss/train", train_avg_loss, epoch)
+            tf_writer.add_scalar("Accuracy/train", train_avg_acc, epoch)
 
             if train_avg_loss < lowest_train_loss:
                 train_improved_str = "(improved)"
@@ -197,13 +216,11 @@ def train():
             else:
                 train_improved_str = ""
 
-            log_string('Epoch {:03d} Overall Results - Train Avg Batch Accuracy: {:.3f}, Train Avg Batch Loss: {:.8f} {}'.format(
+            log_string('Epoch {:03d}: - Train Avg Batch Accuracy: {:.3f}, Train Avg Batch Loss: {:.8f} {}'.format(
                 epoch, train_avg_acc, train_avg_loss, train_improved_str))
 
             # Run validation
-            val_avg_loss, lowest_validation_loss, val_avg_acc, highest_val_acc, val_improved = validation(classifier, model_num, val_loader, criterion, lowest_validation_loss, highest_val_acc, epoch)
-            val_losses.append(float(val_avg_loss))
-            val_acc_list.append(float(val_avg_acc))
+            val_avg_loss, lowest_validation_loss, highest_val_acc, highest_val_dice, val_improved = validation(classifier, model_num, val_loader, criterion, lowest_validation_loss, highest_val_acc, highest_val_dice, epoch)
 
             # Check for early stopping criteria
             early_stopper(val_avg_loss)
@@ -213,8 +230,6 @@ def train():
                 break
 
         log_string("Done training classifier " + str(model_num) + "\n\n" + "---" * 40)
-        plot_loss_curves(train_losses, val_losses, "Pixel Classifier #" + str(model_num), SAVE_PATH)
-        plot_acc_curves(train_acc_list, val_acc_list, "Pixel Classifier #" + str(model_num), SAVE_PATH)
 
 
 def main():
@@ -229,9 +244,7 @@ def main():
     try:
         train()
     except KeyboardInterrupt:
-        # Catch if there is a Keyboard Interruption (ctrl-c). Plot train-val loss curves
-        plot_loss_curves(train_losses, val_losses, "Last Pixel Classifier", SAVE_PATH)
-        plot_acc_curves(train_acc_list, val_acc_list, "Last Pixel Classifier", SAVE_PATH)
+        pass
 
     seconds_elapsed = time.time() - start_time
     log_string("Training took %s minutes" % str(seconds_elapsed / 60.))
@@ -239,7 +252,7 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_Arteriole_stylegan2_ada.json")
+    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
 
@@ -255,11 +268,8 @@ if __name__ == '__main__':
     os.system("cp networks/pixel_classifier.py {}".format(os.path.join(SAVE_PATH, "python_file_saves")))
     os.system("cp pixel_features_dataset.py {}".format(os.path.join(SAVE_PATH, "python_file_saves")))
 
-    # Declare here so can plot train/val loss curves if training stops by ctrl-c
-    train_losses = []
-    val_losses = []
-    train_acc_list = []
-    val_acc_list = []
+    expt_name = args["experiment_dir"].split("/")[-1]
+    tf_writer = SummaryWriter('runs/' + expt_name)
 
     logger = open(os.path.join(SAVE_PATH, "training_log.txt"), "w")
     main()

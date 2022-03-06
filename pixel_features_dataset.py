@@ -1,10 +1,11 @@
 import os
 import numpy as np
-from torch.utils.data import Dataset
 
+from torch.utils.data import Dataset
+from utils.data_util import tma_4096_image_idxs
 
 class PixelFeaturesDataset(Dataset):
-    def __init__(self, data_path, split="train"):
+    def __init__(self, data_path, split="train", val_fold=0):
         """
         Args:
             data_path: absolute path to directory containing training image masks as well as a file called
@@ -21,19 +22,7 @@ class PixelFeaturesDataset(Dataset):
                 compressed npz file.
 
             Strategy for reducing memory consumption:
-                In order to reduce memory constraints regarding loading the entire pixel-level dataset,
-                this datasert assumes that pixel-level features have been saved as separate .npy files
-                for each image (i.e. dataset of 36 images -> 36 .npy files). Npy files have the advantage
-                of being memory-mappable, meaning numpy can load chunks of the array when they are needed
-                rather than loading the entire 25.5 GB array into memory.
-
-                To avoid loading entire 25.5 * 36 images into memory, this dataloader loads the (1048576, 6080)
-                pixel-level features of each image as a memory-mapped array into a dictionary; when an index
-                is retrieved by Pytorch's dataloader, it is divided by 1048576 to find which image file needs
-                to be indexed, and then modulus operator gives us which pixel to load from (1048576, 6080)
-                array. Because of memory mapping, only chunks of arrays that are needed are loaded, keeping
-                memory consumption down.
-
+                Use Numpy memory-mapped array, only load chunks of arrays that are needed.
                 For ground truth masks, the entire (1024x1024) mask is loaded and then turned into a single
                 array of 1048576 * num_dataset_images, and this gives the true length of the dataset.
 
@@ -41,48 +30,38 @@ class PixelFeaturesDataset(Dataset):
                 constantly loading things from disk, which is the tradeoff accepted in order to not require
                 25.5 * 36 GB of RAM memory in order to run training.
 
-            Regarding validation folds, this dataset assumes around 16-30 images for training, and then
-            another 20 images for validation and test (together called evaluation set). The evaludation
-            set will be split into five folds of 4 images, giving 5-fold cross validation.
-
-            Around 627 GB of cache/buffer is being used up because of OS loading chunks from disk
-            and caching them while dataloader is calling for shuffled indices -
+            Notes:
+                For this dataset, specifying num_workers >= 4 and pin_memory=True is a good idea, since many
+                batches can fit into memory.
         """
-
-        # Assertion statements regarding dataset split for this dataset as well as validation fold picked
         assert split in ["train", "val", "test"]
-        # assert val_fold in [0, 1, 2, 3, 4], "Unknown validation fold specified, must be 0-4"
+        assert val_fold in [0, 1, 2, 3, 4], "Unknown validation fold specified, must be 0-4"
 
         if split == "train":
-            idxs = list(range(16))
-            # idxs = list(range(24))
+            img_name_idxs = tma_4096_image_idxs[0:30]
         elif split == "val":
-            idxs = list(range(16, 20))
-            # idxs = list(range(24, 30))
-        elif split == "test":
-            idxs = list(range(20, 36))
-            # idxs = list(range(30, 36))
+            start = 30 + 7 * val_fold
+            idxs = list(range(start, start + 7))
+            img_name_idxs = [tma_4096_image_idxs[i] for i in idxs]
         else:
-            idxs = None
-            assert "Unknown split for pixel feature dataloader."
+            start1 = 30 + 7 * val_fold
+            start2 = 30 + 7 * val_fold + 7
+            idxs = list(range(30, start1)) + list(range(start2, 65))
+            img_name_idxs = [tma_4096_image_idxs[i] for i in idxs]
 
-        self.img_pixel_feat_len = 1024*1024  # 1048576
+        self.img_pixel_feat_len = 4096*4096
         self.split = split
         self.total_size = 0
+        self.class_samp_weights = {0: 0.0256, 1: 0., 2: 0.0192, 3: 0.1805, 4: 2.7027, 5: 0.3311}
 
-        # 100 / percentage of class in training dataset, changed class 0 from 12.34, it wasn't showing up as much in batches
-        self.class_samp_weights = {0: 12.34, 1: 10.62, 2: 104.0, 3: 4.92, 4: 12.11, 5: 8.89, 6: 2.4}
-
-        # Numpy memmap works on .npy files, will load chunks of array when it is used in computations
         self.features = {}
-        for idx, image_idx in enumerate(idxs):
-            pixel_data = np.load(os.path.join(data_path, "pixel_level_feat_img_" + str(image_idx) + ".npy"), mmap_mode='r')  # Shape (1048576, 6080)
+        for idx, image_idx in enumerate(img_name_idxs):
+            pixel_data = np.load(os.path.join(data_path, "pixel_features_dataset", "pixel_level_feat_img_{}.npy".format(image_idx)), mmap_mode='r')  # Shape (1048576, 6080)
             self.features[idx] = pixel_data
 
-        # Load image masks corresponding to images produced by StyleGAN2 for saved latent vectors
         self.ground_truth = {}
-        for idx, image_idx in enumerate(idxs):
-            mask = np.load(os.path.join(data_path, "image_" + str(image_idx) + "_mask.npy"))
+        for idx, image_idx in enumerate(img_name_idxs):
+            mask = np.load(os.path.join(data_path, "image_{}_mask.npy".format(image_idx)))
             h, w = mask.shape
             image_pixel_label_list = []
             for row in range(h):
@@ -94,14 +73,14 @@ class PixelFeaturesDataset(Dataset):
             self.ground_truth[idx] = image_pixel_label_list  # match pixel features
 
     def __len__(self):
-        return self.total_size  # ToDo: Overfit 1 batch, 32768
+        return self.total_size
 
     def __getitem__(self, index):
         image_idx = index // self.img_pixel_feat_len
         pixel_feat_idx = index % self.img_pixel_feat_len
 
-        pixel_feat = self.features[image_idx][pixel_feat_idx, 5120:]  # ToDo: Running reduced features
+        pixel_feat = self.features[image_idx][pixel_feat_idx]
         ground_truth_class = self.ground_truth[image_idx][pixel_feat_idx]
 
-        # returns shapes (6080,) and (1,)
+        # returns shapes (6128,) and (1,)
         return pixel_feat, ground_truth_class

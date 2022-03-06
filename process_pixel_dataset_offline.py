@@ -94,39 +94,52 @@ for row in range(h):
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-pixel_level_feat_img0_PCA = np.load("/data/syed/hdgan/TMA_4096_snapshot2600/pixel_features_dataset/pixel_level_feat_PCA_img_0.npy")
-mask = np.load("/data/syed/hdgan/TMA_4096_snapshot2600/image_{}_mask.npy".format(0))
+pixel_level_feat_img0_PCA = np.load("/data/syed/hdgan/TMA_4096_snapshot2600/pixel_features_PCA_dataset/pixel_level_feat_PCA_img_0.npy")
+pixel_level_feat_img1_PCA = np.load("/data/syed/hdgan/TMA_4096_snapshot2600/pixel_features_PCA_dataset/pixel_level_feat_PCA_img_1.npy")
 
-pixel_ground_truths = []
+img0_PCA_subset = pixel_level_feat_img0_PCA[4096*2000+2000:4096*2000+4000:20,0:2]
+img1_PCA_subset = pixel_level_feat_img1_PCA[4096*2000+2000:4096*2000+4000:20,0:2]
+
+mask0 = np.load("/data/syed/hdgan/TMA_4096_snapshot2600/image_{}_mask.npy".format(0))
+mask1 = np.load("/data/syed/hdgan/TMA_4096_snapshot2600/image_{}_mask.npy".format(1))
+pixel_ground_truths_img0 = []
+pixel_ground_truths_img1 = []
 for row in range(4096):
     for col in range(4096):
-        pixel_ground_truths.append(mask[row, col])
+        pixel_ground_truths_img0.append(mask0[row, col])
+        pixel_ground_truths_img1.append(mask1[row, col])
         
 # Plotting
 plt.figure(figsize=(8,6))
-plt.scatter(pixel_level_feat_img0_PCA[:,0], pixel_level_feat_img0_PCA[:,1], c=pixel_ground_truths[4096*2000+2000:4096*2000+4000:20])
+plt.scatter(img0_PCA_subset[:,0], img0_PCA_subset[:,1], c=pixel_ground_truths_img0[4096*2000+2000:4096*2000+4000:20])
 plt.title("TMA 4096 PCA Reduced 100 Pixels (First Two Components Visualized)")
 plt.xlabel("First Component")
 plt.ylabel("Second Component")
-plt.savefig("/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/pca_tma4096_100pixels_test.png", bbox_inches="tight", facecolor="white")
+plt.savefig("/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/pca_tma4096_100pixels_img0.png", bbox_inches="tight", facecolor="white")
 plt.show()
-
-
-
 
 
 plt.figure(figsize=(8,6))
-plt.scatter(pixel_level_feat_img0_PCA[:,0], pixel_level_feat_img0_PCA[:,1], c=pixel_ground_truths)
+plt.scatter(img1_PCA_subset[:,0], img1_PCA_subset[:,1], c=pixel_ground_truths_img1[4096*2000+2000:4096*2000+4000:20])
+plt.title("TMA 4096 PCA Reduced 100 Pixels (First Two Components Visualized)")
+plt.xlabel("First Component")
+plt.ylabel("Second Component")
+plt.savefig("/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/pca_tma4096_100pixels_img1.png", bbox_inches="tight", facecolor="white")
 plt.show()
-    
 
-Debugging if dataset is loading pixel features and ground truth labels in correct order
-- Debug to line after img, upsampled_featmap = latent_to_img()
 
-import os
-import numpy as np
-reloaded_pixel_data = np.load(os.path.join("/data/syed/hdgan/TMA_1024_Arteriole2/pixel_level_feat_img_" + str(0) + ".npy"), mmap_mode='r')
-reloaded_pixel_data.shape
+combined_PCA_subset = np.concatenate([img0_PCA_subset, img1_PCA_subset], axis=0)
+combined_ground_truth = np.concatenate([pixel_ground_truths_img0[4096*2000+2000:4096*2000+4000:20], pixel_ground_truths_img1[4096*2000+2000:4096*2000+4000:20]], axis=0)
+
+
+plt.figure(figsize=(8,6))
+plt.scatter(combined_PCA_subset[:,0], combined_PCA_subset[:,1], c=combined_ground_truth)
+plt.title("TMA 4096 PCA Reduced 100 Pixels (First Two Components Visualized)")
+plt.xlabel("First Component")
+plt.ylabel("Second Component")
+plt.savefig("/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/pca_tma4096_100pixels_img0_1_combined.png", bbox_inches="tight", facecolor="white")
+plt.show()
+
 """
 
 

@@ -100,7 +100,7 @@ def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, tru
             images, affine_layers = g_all(latents, c=0, truncation_psi=truncation_psi, noise_mode=noise_mode)
 
         num_features = 0
-        for idx in range(12, len(affine_layers)):  # 22 conv outputs for TMA_4096
+        for idx in range(10, len(affine_layers)):  # 22 conv outputs for TMA_4096
             num_features += affine_layers[idx].shape[1]
 
         upsampled_featuremaps = None
@@ -108,7 +108,7 @@ def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, tru
             upsampled_featuremaps = torch.HalfTensor(1, num_features, dim, dim)
             upsampled_featuremaps.to(device)
             start_channel_index = 0
-            for idx in range(12, len(affine_layers)):
+            for idx in range(10, len(affine_layers)):
                 len_channel = affine_layers[idx].shape[1]
                 upsampled_featuremaps[:, start_channel_index:start_channel_index + len_channel] = upsamplers[idx](affine_layers[idx])
                 start_channel_index += len_channel

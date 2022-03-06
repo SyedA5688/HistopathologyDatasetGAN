@@ -97,19 +97,19 @@ def test_one_classifier(model_path, data_loader):
             predicted_mask[idx % 1024] = pixel_preds
 
             if (idx + 1) in image_end_points:
-                ground_truth_mask = ground_truth_mask.numpy()
-                predicted_mask = predicted_mask.numpy()
-
-                ground_truth_mask_list.append(np.expand_dims(np.copy(ground_truth_mask), axis=0))
-                predicted_mask_list.append(np.expand_dims(np.copy(predicted_mask), axis=0))
-
-                ground_truth_mask_one_hot = F.one_hot(torch.tensor(ground_truth_mask).long(), num_classes=args["num_classes"])
-                predicted_mask_one_hot = F.one_hot(torch.tensor(predicted_mask).long(), num_classes=args["num_classes"])
+                ground_truth_mask_one_hot = F.one_hot(ground_truth_mask.long(), num_classes=args["num_classes"])
+                predicted_mask_one_hot = F.one_hot(predicted_mask.long(), num_classes=args["num_classes"])
                 dice_coeff = dice_coefficient(ground_truth_mask_one_hot, predicted_mask_one_hot)
 
                 log_string(logger, "Image {} dice score: {}".format(image_counter, round(dice_coeff.item(), 5)))
                 image_counter += 1
                 dice_scores.append(dice_coeff)
+
+                ground_truth_mask = ground_truth_mask.numpy()
+                predicted_mask = predicted_mask.numpy()
+
+                ground_truth_mask_list.append(np.expand_dims(np.copy(ground_truth_mask), axis=0))
+                predicted_mask_list.append(np.expand_dims(np.copy(predicted_mask), axis=0))
 
                 ground_truth_mask = torch.zeros((1024, 1024))
                 predicted_mask = torch.zeros((1024, 1024))
