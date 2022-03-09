@@ -75,7 +75,7 @@ def dice_coefficient(pred, target):
     target_flat = target.view(-1)
     intersection = (pred_flat * target_flat).sum()
 
-    return 1 - ((2. * intersection + smooth) / (pred_flat.sum() + target_flat.sum() + smooth))
+    return (2. * intersection + smooth) / (pred_flat.sum() + target_flat.sum() + smooth)
 
 
 def latent_to_image(g_all, upsamplers, latents, is_w_latent=False, dim=1024, truncation_psi=0.7, return_upsampled_featuremaps=False, process_out=True, noise_mode='const', device='cuda'):

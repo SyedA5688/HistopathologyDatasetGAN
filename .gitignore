@@ -4,6 +4,7 @@ generated_datasets/TMA_1024_Arteriole/
 generated_datasets/TMA_1024_Arteriole2/
 generated_datasets/nvtlabs_mask0.npy
 _pca_visuals/
+runs/
 training-runs/
 segm-training-runs/
 check_pixel_class_distribution.py

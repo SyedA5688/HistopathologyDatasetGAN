@@ -12,7 +12,7 @@ from utils.utils import latent_to_image
 
 np.random.seed(0)
 torch.manual_seed(0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # device = 'cuda' if torch.cuda.is_available() else 'cpu'
 device = 'cpu'
 
@@ -22,6 +22,12 @@ def check_img_idx_in_filename_tma4096(all_files, img_idx):
         if file == "image_{}.png".format(img_idx):
             return True
     return False
+
+
+def center_and_scale(pixel_feature_list):
+    pixel_feat_mean = np.mean(pixel_feature_list, axis=0, dtype=np.float64)
+    pixel_feat_std = np.std(pixel_feature_list, axis=0, dtype=np.float64)
+    return (pixel_feature_list - pixel_feat_mean) / pixel_feat_std
 
 
 def create_pixel_classifier_compressed_dataset(data_path, g_all, upsamplers, save_path):
@@ -34,9 +40,9 @@ def create_pixel_classifier_compressed_dataset(data_path, g_all, upsamplers, sav
     all_files = [file for file in all_files if ".png" in file]
     ipca = IncrementalPCA(n_components=100)
 
-    for img_name_idx in range(0, len(latent_np) + 1):
+    for img_name_idx in range(0, 38):  # len(latent_np) + 1
         if check_img_idx_in_filename_tma4096(all_files, img_name_idx):
-            print("Processing image", img_name_idx)
+            print("Fitting on image", img_name_idx)
             is_w_latent = img_name_idx == 0
             latent = torch.from_numpy(avg_latent_np).to(device).unsqueeze(0) if is_w_latent \
                 else torch.from_numpy(latent_np[img_name_idx - 1]).to(device).unsqueeze(0)
@@ -53,16 +59,14 @@ def create_pixel_classifier_compressed_dataset(data_path, g_all, upsamplers, sav
                     pixel_features_list.append(upsampled_featmap[:, :, row, col])  # Append [1, 6128]
 
             pixel_features_list = torch.cat(pixel_features_list, dim=0).numpy()  # [4096*4096, 6128]
-            pixel_feat_mean = np.mean(pixel_features_list, axis=0, dtype=np.float64)
-            pixel_feat_std = np.std(pixel_features_list, axis=0, dtype=np.float64)
-            pixel_feat_shifted_scaled = (pixel_features_list - pixel_feat_mean) / pixel_feat_std
+            pixel_features_list = center_and_scale(pixel_features_list)
 
             # Fit this chunk of the data. Calculating PCA incrementally
-            for feat_idx in range(0, len(pixel_feat_shifted_scaled), 1048576):
-                ipca.partial_fit(pixel_feat_shifted_scaled[feat_idx:feat_idx + 1048576])
+            for feat_idx in range(0, len(pixel_features_list), 262144):
+                ipca.partial_fit(pixel_features_list[feat_idx:feat_idx + 262144])
 
     print("\n\nFinished fitting PCA incrementally. Transforming and saving data now")
-    for img_name_idx in range(0, len(latent_np) + 1):
+    for img_name_idx in range(0, 92):  # len(latent_np) + 1
         if check_img_idx_in_filename_tma4096(all_files, img_name_idx):
             print("Processing image", img_name_idx)
             is_w_latent = img_name_idx == 0
@@ -82,8 +86,8 @@ def create_pixel_classifier_compressed_dataset(data_path, g_all, upsamplers, sav
 
             pixel_features_list = torch.cat(pixel_features_list, dim=0).numpy()  # [4096*4096, 6128]
             transformed_pca_features_list = []
-            for feat_idx in range(0, len(pixel_features_list), 1048576):
-                pixel_pca_features = ipca.transform(pixel_features_list[feat_idx:feat_idx + 1048576])
+            for feat_idx in range(0, len(pixel_features_list), 262144):
+                pixel_pca_features = ipca.transform(pixel_features_list[feat_idx:feat_idx + 262144])
                 transformed_pca_features_list.append(pixel_pca_features)
             transformed_pca_features = np.concatenate(transformed_pca_features_list, axis=0)
             np.save(os.path.join(save_path, "pixel_level_feat_PCA_img_{}.npy".format(img_name_idx)), transformed_pca_features)
@@ -108,8 +112,11 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
+    parser.add_argument('--experiment', type=str, default="/home/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
+    # /home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
+    args["dataset_save_dir"] = "/project/hnguyen2/syed/hdgan/TMA_4096_snapshot2600"
+    args["stylegan_checkpoint"] = "/home/srizvi7/Desktop/Histopathology_Dataset_GAN/network-snapshot-002600.pkl"
 
     main()

@@ -19,6 +19,9 @@ from utils.data_util import tma_4096_crop_class
 from networks.pixel_classifier import PixelClassifier
 from pixel_features_dataset import PixelFeaturesDataset
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 chosen_seed = 0
 seed(chosen_seed)
@@ -68,7 +71,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         dice_scores = []
 
         for batch_idx, (data, ground_truth) in enumerate(val_loader):
-            data, ground_truth = data.float().to(device), ground_truth.long().to(device)
+            data, ground_truth = data.to(device), ground_truth.long().to(device)
 
             pred_logits = model(data)
             loss = criterion(pred_logits, ground_truth)
@@ -92,7 +95,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
                 predicted_mask_one_hot = F.one_hot(predicted_mask.long(), num_classes=args["num_classes"])
 
                 dice_coeff = dice_coefficient(ground_truth_mask_one_hot, predicted_mask_one_hot)
-                dice_scores.append(dice_coeff)
+                dice_scores.append(dice_coeff.item())
 
                 ground_truth_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
                 predicted_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
@@ -104,8 +107,12 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         val_avg_acc = summed_acc / (batch_idx + 1)
         val_avg_dice_coeff = mean(dice_scores)
 
-        if val_avg_acc > highest_val_acc:  # val_avg_loss < lowest_val_loss or
-            improved, improved_str = True, "(improved accuracy or val loss)"
+        tf_writer.add_scalar("Loss/val", val_avg_loss, epoch_num)
+        tf_writer.add_scalar("Accuracy/val", val_avg_acc, epoch_num)
+        tf_writer.add_scalar("Dice/val", val_avg_dice_coeff, epoch_num)
+
+        if val_avg_acc > highest_val_acc or val_avg_loss < lowest_val_loss or val_avg_dice_coeff > highest_val_dice:
+            improved, improved_str = True, "(improved)"
         else:
             improved, improved_str = False, ""
 
@@ -131,17 +138,12 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         ####################################
         # Save model if there is improvement
         ####################################
-        if improved:
-            # Overwrite best saved model each time, only keep best model
-            save_name = "best_model_{}.pth".format(model_num) if epoch_num is None else "best_model_{}_ep{}.pth".format(model_num, epoch_num)
-            torch.save({
-                'model_state_dict': model.state_dict(),
-                'validation_loss': val_avg_loss
-            }, os.path.join(SAVE_PATH, save_name))
-
-        tf_writer.add_scalar("Loss/val", val_avg_loss, epoch_num)
-        tf_writer.add_scalar("Accuracy/val", val_avg_acc, epoch_num)
-        tf_writer.add_scalar("Dice/val", val_avg_dice_coeff, epoch_num)
+        # if improved:
+        save_name = "best_model_{}.pth".format(model_num) if epoch_num is None else "best_model_{}_ep{}.pth".format(model_num, epoch_num)
+        torch.save({
+            'model_state_dict': model.state_dict(),
+            'validation_loss': val_avg_loss
+        }, os.path.join(SAVE_PATH, save_name))
 
         return val_avg_loss, return_loss, return_acc, return_dice, improved
 
@@ -157,8 +159,8 @@ def train():
 
         classifier = nn.DataParallel(classifier).to(device)
         criterion = nn.CrossEntropyLoss()  # label_smoothing=0.5
-        # optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"])  # lr 0.05
-        optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])  # lr 0.001
+        optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"], momentum=0.9)  # lr 0.05
+        # optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])  # lr 0.001
 
         training_set = PixelFeaturesDataset(args["dataset_save_dir"], split="train")
         validation_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
@@ -172,8 +174,9 @@ def train():
         sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
         train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler, num_workers=16, pin_memory=True)
+        # ToDo: debug and check if batch is balanced, Arteriole pixels should be equal
         # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True, pin_memory=True)
-        val_loader = DataLoader(validation_set, batch_size=args['featuremaps_dim'][1], shuffle=False)
+        val_loader = DataLoader(validation_set, batch_size=args['featuremaps_dim'][1], shuffle=False, num_workers=32, pin_memory=True)
 
         # Training loop
         lowest_validation_loss = 10000000.
@@ -191,7 +194,7 @@ def train():
             for batch_idx, (data, ground_truth) in enumerate(train_loader):
                 # Move data and ground truth labels to cuda device, change ground truth labels to dtype long (integers)
                 # data is [b, 6128], ground_truth is [64,]
-                data, ground_truth = data.float().to(device), ground_truth.long().to(device)
+                data, ground_truth = data.to(device), ground_truth.long().to(device)
                 optimizer.zero_grad()
 
                 pred_logits = classifier(data)  # pred shape [b, 7]  # 7 class output probabilities
