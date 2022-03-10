@@ -25,6 +25,7 @@
 
 
 tma_4096_crop_class = ["Whitespace", "Cortex", "Cortical Tubulointerstitium", "Glomerulus", "Arteriole", "Artery"]
+tma_4096_crop_class_printname = ["Whitespace", "Cortex", "Cortical TI", "Glomerulus", "Arteriole", "Artery"]
 
 # Trainset is first 16 images, 0 to 61
 tma_4096_image_idxs = [0, 1, 3, 4, 5, 8, 9, 14, 16, 37, 38, 42, 46, 52, 60, 61, 67, 70, 72, 73, 74, 81, 83, 86, 91, 92, 96, 102, 108, 120, 122, 134, 138, 144, 149, 154]

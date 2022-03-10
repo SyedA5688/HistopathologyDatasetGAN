@@ -14,8 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, WeightedRandomSampler
 import numpy as np
 
-from utils.utils import multi_acc, oht_to_scalar, EarlyStopping, dice_coefficient
-from utils.data_util import tma_4096_crop_class
+from utils.utils import multi_acc, oht_to_scalar, dice_coefficient  # , EarlyStopping
+from utils.data_util import tma_4096_crop_class_printname
 from networks.pixel_classifier import PixelClassifier
 from pixel_features_dataset import PixelFeaturesDataset
 
@@ -24,13 +24,16 @@ warnings.filterwarnings("ignore")
 
 
 chosen_seed = 0
-seed(chosen_seed)
-np.random.seed(chosen_seed)
-torch.manual_seed(chosen_seed)
-torch.cuda.manual_seed_all(chosen_seed)
-
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+def worker_init_fn(worker_id):
+    torch_seed = torch.initial_seed()
+    seed(torch_seed + worker_id)
+    if torch_seed >= 2**30:  # make sure torch_seed + workder_id < 2**32
+        torch_seed = torch_seed % 2**30
+    np.random.seed(torch_seed + worker_id)
 
 
 def log_string(str1):
@@ -39,18 +42,18 @@ def log_string(str1):
     logger.flush()
 
 
-class CustomWeightedRandomSampler(WeightedRandomSampler):
-    """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def __iter__(self):
-        rand_tensor = np.random.choice(range(0, len(self.weights)),
-                                       size=self.num_samples,
-                                       p=self.weights.numpy() / torch.sum(self.weights).numpy(),
-                                       replace=self.replacement)
-        rand_tensor = torch.from_numpy(rand_tensor)
-        return iter(rand_tensor.tolist())
+# class CustomWeightedRandomSampler(WeightedRandomSampler):
+#     """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#
+#     def __iter__(self):
+#         rand_tensor = np.random.choice(range(0, len(self.weights)),
+#                                        size=self.num_samples,
+#                                        p=self.weights.numpy() / torch.sum(self.weights).numpy(),
+#                                        replace=self.replacement)
+#         rand_tensor = torch.from_numpy(rand_tensor)
+#         return iter(rand_tensor.tolist())
 
 
 def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc, highest_val_dice, epoch_num):
@@ -63,20 +66,25 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         summed_acc = 0.
 
         image_end_points = [args["featuremaps_dim"][1] * i for i in range(1, 66)]
-        class_correct_count = [0 for _ in range(len(tma_4096_crop_class))]
-        class_total_count = [0 for _ in range(len(tma_4096_crop_class))]
+        class_correct_count = [0 for _ in range(len(tma_4096_crop_class_printname))]
+        class_total_count = [0 for _ in range(len(tma_4096_crop_class_printname))]
 
         ground_truth_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
         predicted_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
         dice_scores = []
+        confusion_matrix = torch.zeros(args["num_classes"], args["num_classes"])
 
         for batch_idx, (data, ground_truth) in enumerate(val_loader):
-            data, ground_truth = data.to(device), ground_truth.long().to(device)
+            data, ground_truth = data.float().to(device), ground_truth.long().to(device)
 
             pred_logits = model(data)
             loss = criterion(pred_logits, ground_truth)
             acc = multi_acc(pred_logits, ground_truth)
             pixel_preds = oht_to_scalar(pred_logits)
+
+            # Accumulating predictions for confusion matrix. ToDo: This can replace class-wise counting below
+            for t, p in zip(ground_truth.view(-1), pixel_preds.view(-1)):
+                confusion_matrix[t.long(), p.long()] += 1
 
             # Accumulating class-wise counts to compute class-wise accuracy later on
             for i in range(len(pred_logits)):
@@ -125,14 +133,19 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         # Print out class-wise and total pixel-level accuracy
         log_string("Validation Class-wise Accuracies for Single Model:")
         class_accuracies = []
-        for i in range(len(tma_4096_crop_class)):
+        for i in range(len(tma_4096_crop_class_printname)):
             if class_total_count[i] != 0:
                 class_accuracies.append(class_correct_count[i] / class_total_count[i])
             else:
                 class_accuracies.append(-1)  # Not applicable, 0 pixels of this class in test set
 
-        for i in range(len(tma_4096_crop_class)):
-            log_string(tma_4096_crop_class[i] + " Accuracy: " + str(round(class_accuracies[i], 5)))
+        for i in range(len(tma_4096_crop_class_printname)):
+            log_string(tma_4096_crop_class_printname[i] + " Accuracy: " + str(round(class_accuracies[i], 5)))
+        log_string("")
+
+        log_string(", ".join(tma_4096_crop_class_printname))
+        # log_string(str(confusion_matrix))
+        log_string('\n'.join(['\t'.join(['{:9.1f}'.format(num.item()) for num in row]) for row in confusion_matrix]))
         log_string("\n")
 
         ####################################
@@ -158,7 +171,7 @@ def train():
         log_string("Model architecture:\n" + str(classifier) + "\n")
 
         classifier = nn.DataParallel(classifier).to(device)
-        criterion = nn.CrossEntropyLoss()  # label_smoothing=0.5
+        criterion = nn.CrossEntropyLoss()  # ToDo: Consider label_smoothing=0.5
         optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"], momentum=0.9)  # lr 0.05
         # optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])  # lr 0.001
 
@@ -170,11 +183,10 @@ def train():
 
         log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
         sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
-        # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
-        sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
-        train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler, num_workers=16, pin_memory=True)
-        # ToDo: debug and check if batch is balanced, Arteriole pixels should be equal
+        train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler, num_workers=16, pin_memory=True, worker_init_fn=worker_init_fn)
         # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True, pin_memory=True)
         val_loader = DataLoader(validation_set, batch_size=args['featuremaps_dim'][1], shuffle=False, num_workers=32, pin_memory=True)
 
@@ -183,9 +195,10 @@ def train():
         lowest_train_loss = 10000000.
         highest_val_acc = 0.
         highest_val_dice = 0.
-        early_stopper = EarlyStopping(patience=args["early_stopping_patience"], min_delta=0.005)
+        # early_stopper = EarlyStopping(patience=args["early_stopping_patience"], min_delta=0.005)
 
         for epoch in range(args["epochs"]):
+            np.random.seed(chosen_seed + epoch)  # To fix sampling same numpy random numbers each epoch
             log_string("Epoch " + str(epoch) + " starting...")
             classifier.train()
             total_train_loss = 0.
@@ -194,7 +207,7 @@ def train():
             for batch_idx, (data, ground_truth) in enumerate(train_loader):
                 # Move data and ground truth labels to cuda device, change ground truth labels to dtype long (integers)
                 # data is [b, 6128], ground_truth is [64,]
-                data, ground_truth = data.to(device), ground_truth.long().to(device)
+                data, ground_truth = data.float().to(device), ground_truth.long().to(device)
                 optimizer.zero_grad()
 
                 pred_logits = classifier(data)  # pred shape [b, 7]  # 7 class output probabilities
@@ -226,11 +239,11 @@ def train():
             val_avg_loss, lowest_validation_loss, highest_val_acc, highest_val_dice, val_improved = validation(classifier, model_num, val_loader, criterion, lowest_validation_loss, highest_val_acc, highest_val_dice, epoch)
 
             # Check for early stopping criteria
-            early_stopper(val_avg_loss)
-            if val_improved:
-                early_stopper.counter = 0
-            if early_stopper.early_stop:
-                break
+            # early_stopper(val_avg_loss)
+            # if val_improved:
+            #     early_stopper.counter = 0
+            # if early_stopper.early_stop:
+            #     break
 
         log_string("Done training classifier " + str(model_num) + "\n\n" + "---" * 40)
 

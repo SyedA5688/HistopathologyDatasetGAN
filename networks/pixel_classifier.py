@@ -19,7 +19,7 @@ class PixelClassifier(nn.Module):
         self.lin4 = nn.Linear(dim, 128)
         self.act4 = nn.ReLU()
         self.bn4 = nn.BatchNorm1d(num_features=128)
-        self.drop4 = nn.Dropout(p=0.2)
+        self.drop4 = nn.Dropout(p=0.3)
         self.lin5 = nn.Linear(128, 32)
         self.act5 = nn.ReLU()
         self.bn5 = nn.BatchNorm1d(num_features=32)
