@@ -59,7 +59,7 @@ class PixelFeaturesDataset(Dataset):
         self.total_size = 0
         self.pixel_feat_mean = np.load(os.path.join(data_path, "dataset_means.npy"))
         self.pixel_feat_stds = np.load(os.path.join(data_path, "dataset_stds.npy"))
-        self.class_samp_weights = {0: 0.05, 1: 0., 2: 0.019, 3: 0.08, 4: 0.97, 5: 0.28}
+        self.class_samp_weights = {0: 0.05, 1: 0.019, 2: 0.08, 3: 0.97, 4: 0.28}
 
         self.features = {}
         for idx, image_idx in enumerate(img_name_idxs):
@@ -111,7 +111,7 @@ if __name__ == "__main__":
         idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
     sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
-    train_loader = DataLoader(training_set, batch_size=4096, sampler=sampler)
+    train_loader = DataLoader(training_set, batch_size=65536, sampler=sampler)
     # train_loader = DataLoader(training_set, batch_size=65536, shuffle=True)
     train_iter = iter(train_loader)
     print("Loading batch...")

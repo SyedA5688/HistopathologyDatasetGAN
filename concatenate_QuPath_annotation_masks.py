@@ -13,7 +13,9 @@ def get_segmentation_class_numbers():
     seg_classes_dict = {}
     for idx, annotation_class_obj in enumerate(tma_4096_crop_class):
         seg_classes_dict[annotation_class_obj] = idx
-
+    seg_classes_dict["Cortex"] = -1
+    print(len(tma_4096_crop_class), "classes:")
+    print(seg_classes_dict)
     return seg_classes_dict
 
 
@@ -40,7 +42,7 @@ def reconstruct_mask_for_one_image(image_path, image_name, annotation_masks_path
     for annotation_mask_file in mask_file_list:
         mask_class_name = annotation_mask_file.split(".png_")[-1].split("_(")[0]
         if mask_class_name not in seg_classes:
-            continue
+            raise Exception("Found unknown class:", mask_class_name)
         mask_coords_str = annotation_mask_file.split("(1.00,")[-1].split(")-mask")[0]
         mask_coords_str_list = mask_coords_str.split(",")
         mask_coords_list = [int(coord_str) for coord_str in mask_coords_str_list]
@@ -79,7 +81,7 @@ def reconstruct_mask_for_one_image(image_path, image_name, annotation_masks_path
         # Note: last annotation overlayed on top has priority if annotation classes overlap on an image.
 
     # Create Cortical Tubulointerstitium mask
-    interstitial_mask = concatenated_mask == 1
+    interstitial_mask = concatenated_mask == -1
     concatenated_mask = np.where(interstitial_mask, seg_classes["Cortical Tubulointerstitium"], concatenated_mask)
     return concatenated_mask
 

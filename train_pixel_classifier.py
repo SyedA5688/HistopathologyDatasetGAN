@@ -66,13 +66,10 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         summed_acc = 0.
 
         image_end_points = [args["featuremaps_dim"][1] * i for i in range(1, 66)]
-        class_correct_count = [0 for _ in range(len(tma_4096_crop_class_printname))]
-        class_total_count = [0 for _ in range(len(tma_4096_crop_class_printname))]
-
         ground_truth_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
         predicted_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
-        dice_scores = []
         confusion_matrix = torch.zeros(args["num_classes"], args["num_classes"])
+        dice_scores = []
 
         for batch_idx, (data, ground_truth) in enumerate(val_loader):
             data, ground_truth = data.float().to(device), ground_truth.long().to(device)
@@ -85,12 +82,6 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
             # Accumulating predictions for confusion matrix. ToDo: This can replace class-wise counting below
             for t, p in zip(ground_truth.view(-1), pixel_preds.view(-1)):
                 confusion_matrix[t.long(), p.long()] += 1
-
-            # Accumulating class-wise counts to compute class-wise accuracy later on
-            for i in range(len(pred_logits)):
-                class_total_count[ground_truth[i]] += 1
-                if ground_truth[i] == pixel_preds[i]:  # Correct prediction
-                    class_correct_count[ground_truth[i]] += 1
 
             val_total_loss += loss.item()
             summed_acc += acc.item()
@@ -134,18 +125,18 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         log_string("Validation Class-wise Accuracies for Single Model:")
         class_accuracies = []
         for i in range(len(tma_4096_crop_class_printname)):
-            if class_total_count[i] != 0:
-                class_accuracies.append(class_correct_count[i] / class_total_count[i])
+            if confusion_matrix[i, :].sum().item() == 0:
+                class_accuracies.append(-1)  # 0 pixels of this class in validation set
             else:
-                class_accuracies.append(-1)  # Not applicable, 0 pixels of this class in test set
+                class_accuracies.append(confusion_matrix[i, i].item() / confusion_matrix[i, :].sum().item())
 
         for i in range(len(tma_4096_crop_class_printname)):
             log_string(tma_4096_crop_class_printname[i] + " Accuracy: " + str(round(class_accuracies[i], 5)))
         log_string("")
 
-        log_string(", ".join(tma_4096_crop_class_printname))
+        log_string(",\t".join(tma_4096_crop_class_printname))
         # log_string(str(confusion_matrix))
-        log_string('\n'.join(['\t'.join(['{:9.1f}'.format(num.item()) for num in row]) for row in confusion_matrix]))
+        log_string('\n'.join(['\t'.join(['{:10.1f}'.format(num.item()) for num in row]) for row in confusion_matrix]))
         log_string("\n")
 
         ####################################
