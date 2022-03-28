@@ -23,7 +23,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-chosen_seed = 0
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -42,18 +41,19 @@ def log_string(str1):
     logger.flush()
 
 
-# class CustomWeightedRandomSampler(WeightedRandomSampler):
-#     """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#
-#     def __iter__(self):
-#         rand_tensor = np.random.choice(range(0, len(self.weights)),
-#                                        size=self.num_samples,
-#                                        p=self.weights.numpy() / torch.sum(self.weights).numpy(),
-#                                        replace=self.replacement)
-#         rand_tensor = torch.from_numpy(rand_tensor)
-#         return iter(rand_tensor.tolist())
+class CustomWeightedRandomSampler(WeightedRandomSampler):
+    """WeightedRandomSampler except allows for more than 2^24 samples to be sampled"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __iter__(self):
+        rand_tensor = np.random.choice(range(0, len(self.weights)),
+                                       size=self.num_samples,
+                                       p=self.weights.numpy() / torch.sum(self.weights).numpy(),
+                                       replace=self.replacement)
+        rand_tensor = torch.from_numpy(rand_tensor)
+        return iter(rand_tensor.tolist())
+# ToDo: Try training on other 4 folds
 
 
 def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc, highest_val_dice, epoch_num):
@@ -79,7 +79,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
             acc = multi_acc(pred_logits, ground_truth)
             pixel_preds = oht_to_scalar(pred_logits)
 
-            # Accumulating predictions for confusion matrix. ToDo: This can replace class-wise counting below
+            # Accumulating predictions for confusion matrix
             for t, p in zip(ground_truth.view(-1), pixel_preds.view(-1)):
                 confusion_matrix[t.long(), p.long()] += 1
 
@@ -136,7 +136,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
 
         log_string(",\t".join(tma_4096_crop_class_printname))
         # log_string(str(confusion_matrix))
-        log_string('\n'.join(['\t'.join(['{:10.1f}'.format(num.item()) for num in row]) for row in confusion_matrix]))
+        log_string('\n'.join(['\t'.join(['{:12.1f}'.format(num.item()) for num in row]) for row in confusion_matrix]))
         log_string("\n")
 
         ####################################
@@ -162,20 +162,20 @@ def train():
         log_string("Model architecture:\n" + str(classifier) + "\n")
 
         classifier = nn.DataParallel(classifier).to(device)
-        criterion = nn.CrossEntropyLoss()  # ToDo: Consider label_smoothing=0.5
-        optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"], momentum=0.9)  # lr 0.05
+        criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+        optimizer = optim.SGD(classifier.parameters(), lr=args["pixel_classifier_lr"], momentum=0.9)
         # optimizer = optim.Adam(classifier.parameters(), lr=args["pixel_classifier_lr"])  # lr 0.001
 
         training_set = PixelFeaturesDataset(args["dataset_save_dir"], split="train")
-        validation_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val")
+        validation_set = PixelFeaturesDataset(args["dataset_save_dir"], split="val", val_fold=args["val_fold"])
 
         log_string("Length of train dataset: " + str(len(training_set)))
         log_string("Length of validation dataset: " + str(len(validation_set)) + "\n")
 
         log_string("Using WeightedRandomSampler in training dataset to balance classes in batch")
         sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
-        sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
-        # sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        # sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
+        sampler = CustomWeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
         train_loader = DataLoader(training_set, batch_size=args['batch_size'], sampler=sampler, num_workers=16, pin_memory=True, worker_init_fn=worker_init_fn)
         # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True, pin_memory=True)
@@ -189,7 +189,6 @@ def train():
         # early_stopper = EarlyStopping(patience=args["early_stopping_patience"], min_delta=0.005)
 
         for epoch in range(args["epochs"]):
-            np.random.seed(chosen_seed + epoch)  # To fix sampling same numpy random numbers each epoch
             log_string("Epoch " + str(epoch) + " starting...")
             classifier.train()
             total_train_loss = 0.

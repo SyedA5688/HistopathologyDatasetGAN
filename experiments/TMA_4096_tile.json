@@ -4,9 +4,9 @@
   "dataset_save_dir": "/data/syed/hdgan/TMA_4096_snapshot2600/",
   "early_stopping_patience": 15,
   "epochs": 25,
-  "experiment_desc": "New 5-class masks, SGD optimizer + momentum, learning rate 0.0001, balanced batches, normalizing features in dataloader, 16 image training set (reduced to one sixteenth of TMA crop for faster iteration), dropout 0.3, small gaussian noise data augmentation drawn from N(0, 0.01).",
-  "experiment_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/TMA_4096-0013",
-  "featuremaps_dim": [1024, 1024, 496],
+  "experiment_desc": "5-classes, SGD optimizer + momentum, learning rate 0.0001, label smoothening in CrossEntropyLoss 0.1, balanced batches, normalizing features in dataloader, 16 image training set (full crop), dropout 0.3, small gaussian noise data augmentation drawn from N(0, 0.1). Val fold 1.",
+  "experiment_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/TMA_4096-0019",
+  "featuremaps_dim": [4096, 4096, 496],
   "G_kwargs": {
     "class_name": "networks.stylegan2_ada.Generator",
     "z_dim": 512,
@@ -27,6 +27,7 @@
   "qupath_annotation_mask_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/TMAFakeImageSegmentationV2/mask/",
   "stylegan_checkpoint": "/data/syed/stylegan2-ada-training/00003-tile-mirror-auto4-color/network-snapshot-002600.pkl",
   "truncation": 0.7,
-  "upsample_mode":"bilinear"
+  "upsample_mode":"bilinear",
+  "val_fold": 0
 }
 
