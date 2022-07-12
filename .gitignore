@@ -12,6 +12,7 @@ segm-training-runs/
 calculate_dataset_mean_std.py
 check_pixel_class_distribution.py
 pca_test_script.py
+process_pixel_PCA_dataset_offline.py
 pixel_class_distrib_TMA.txt
 pixel_tma4096_full_class_distrib.txt
 pixel_tma4096_reduced_class_distrib.txt
