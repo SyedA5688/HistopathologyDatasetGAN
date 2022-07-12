@@ -1,5 +1,8 @@
 # HistopathologyDatasetGAN
 
+![HDGAN Architecture Figure](/assets/images/HDGAN_fig1.png?raw=true)
+
+
 Official PyTorch implementation of the paper [Histopathology DatasetGAN: Synthesizing Large-Resolution Histopathology Datasets](https://arxiv.org/abs/2207.02712).
 Improvements are proposed and implemented on the original DatasetGAN framework for annotation-efficient image-annotation generation.
 
