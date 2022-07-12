@@ -35,7 +35,7 @@ def create_pixel_classifier_compressed_dataset(data_path, g_all, upsamplers, sav
 
     latent_np = np.load(os.path.join(data_path, "latent_stylegan2.npy"))
     # for img_name_idx in range(1, len(latent_np) + 1):
-    for img_name_idx in range(200, len(latent_np) + 1):  # Already did up to idx 199
+    for img_name_idx in range(0, len(latent_np) + 1):
         if check_img_idx_in_filename_tma4096(all_files, img_name_idx):
             print("Processing image", img_name_idx)
             dataset_split_helper(latent_np, img_name_idx, g_all, upsamplers, save_path,
@@ -52,14 +52,14 @@ def dataset_split_helper(latent_np, img_name_idx, g_all, upsamplers, save_path, 
                                              return_upsampled_featuremaps=True, device=device)
 
     # print("Upsampled featuremap shape:", upsampled_featmap.shape)
-    b, ch, h, w = upsampled_featmap.shape  # [1, 1008, 4096, 4096]
+    b, ch, h, w = upsampled_featmap.shape  # [1, ch, 4096, 4096]
 
     pixel_features_list = []
     for row in range(h):
         for col in range(w):
-            pixel_features_list.append(upsampled_featmap[:, :, row, col])  # Append [1, 1008]
+            pixel_features_list.append(upsampled_featmap[:, :, row, col])  # Append [1, ch]
 
-    pixel_features_list = torch.cat(pixel_features_list, dim=0).cpu().numpy()  # [4096*4096, 1008]
+    pixel_features_list = torch.cat(pixel_features_list, dim=0).cpu().numpy()  # [4096*4096, ch]
     print("Image {} shape:".format(img_name_idx), pixel_features_list.shape, "\n")
     np.save(os.path.join(save_path, save_name), pixel_features_list)
 
@@ -154,7 +154,7 @@ def main():
     upsamplers = get_upsamplers(args)
 
     # Create dataset
-    save_path = os.path.join(args["dataset_save_dir"], "pixel_features_dataset")
+    save_path = os.path.join(args["dataset_save_dir"], "pixel_3_block_features_dataset")
     if not os.path.exists(save_path):
         os.mkdir(save_path)
     create_pixel_classifier_compressed_dataset(args["dataset_save_dir"], g_all, upsamplers, save_path=save_path)

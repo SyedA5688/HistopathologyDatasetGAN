@@ -22,7 +22,7 @@ np.random.seed(chosen_seed)
 torch.manual_seed(chosen_seed)
 torch.cuda.manual_seed_all(chosen_seed)
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -147,7 +147,7 @@ def main():
 
     split_name = "test"
     ground_truth_mask_list, predicted_mask_list = test_one_classifier(
-        os.path.join(training_run_dir, training_run, "best_model_" + str(0) + "_ep1.pth"), test_dataloader)
+        os.path.join(training_run_dir, training_run, "best_model_{}_ep{}.pth".format(0, 1)), test_dataloader)
     for idx in range(len(predicted_mask_list)):
         print("Saving predicted mask and ground truth mask for image", test_set.img_name_idxs[idx])
         # all_classifiers_pred_mask_list[idx] is (1, 1, 4096, 4096)
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     args = json.load(open(opts.experiment, 'r'))
 
     training_run_dir = "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/"
-    training_run = "TMA_4096-0016"
+    training_run = "TMA_4096-0019*"
     SAVE_PATH = os.path.join(training_run_dir, training_run, "classifier0_ep1_test_mask_pred")
     if not os.path.exists(SAVE_PATH):
         os.mkdir(SAVE_PATH)

@@ -60,28 +60,24 @@ class PixelFeaturesDataset(Dataset):
         self.img_pixel_feat_len = 4096*4096
         self.split = split
         self.total_size = 0
-        self.pixel_feat_mean = np.load(os.path.join(data_path, "dataset_means.npy"))
-        self.pixel_feat_stds = np.load(os.path.join(data_path, "dataset_stds.npy"))
-        self.class_samp_weights = {0: 0.05, 1: 0.019, 2: 0.08, 3: 0.97, 4: 0.28}  # ToDo: Debug if batches are balanced on full training set
+        self.pixel_feat_mean = np.load(os.path.join(data_path, "4_block_dataset_means.npy"))
+        self.pixel_feat_stds = np.load(os.path.join(data_path, "4_block_dataset_stds.npy"))
+        self.class_samp_weights = {0: 0.05, 1: 0.019, 2: 0.08, 3: 0.97, 4: 0.28}
 
         self.features = {}
         for idx, image_idx in enumerate(img_name_idxs):
-            pixel_data = np.load(os.path.join(data_path, "pixel_5block_features_dataset", "pixel_level_feat_img_{}.npy".format(image_idx)), mmap_mode='r')  # Shape (nsamples, nfeatures)
+            pixel_data = np.load(os.path.join(data_path, "pixel_4_block_features_dataset", "pixel_level_feat_img_{}.npy".format(image_idx)), mmap_mode='r')  # Shape (nsamples, nfeatures)
             self.features[idx] = pixel_data
 
         self.ground_truth = {}
-        # self.temp_idx_mapping = {}
-        # idx_counter = 0
         for idx, image_idx in enumerate(img_name_idxs):
             print("Processing image", image_idx)
             mask = np.load(os.path.join(data_path, "image_{}_mask.npy".format(image_idx)))
             h, w = mask.shape
             image_pixel_label_list = []
-            for row in range(h):  # 1024, 2048
-                for col in range(w):  # 1024, 2048
+            for row in range(h):
+                for col in range(w):
                     image_pixel_label_list.append(mask[row, col])  # Append 1 by 1, ensure correct order
-                    # idx_counter += 1
-                    # self.temp_idx_mapping[idx_counter] = 4096 * row + col
 
             image_pixel_label_list = np.array(image_pixel_label_list)
             self.total_size += len(image_pixel_label_list)
@@ -96,13 +92,12 @@ class PixelFeaturesDataset(Dataset):
         pixel_feat_idx = index % self.img_pixel_feat_len
 
         ground_truth_class = self.ground_truth[image_idx][pixel_feat_idx]
-        # pixel_feat = self.features[image_idx][self.temp_idx_mapping[pixel_feat_idx]].astype(np.float32)
         pixel_feat = self.features[image_idx][pixel_feat_idx].astype(np.float32)
         pixel_feat = (pixel_feat - self.pixel_feat_mean) / self.pixel_feat_stds
 
         if self.split == "train" and random.random() < 0.5:
             # std min for pixel dataset is around 0.01
-            pixel_feat += np.random.normal(loc=0., scale=0.1, size=(496,)).astype(np.float32)  # torch.zeros(496).data.normal_(0, 0.1)
+            pixel_feat += np.random.normal(loc=0., scale=0.1, size=(240,)).astype(np.float32)  # torch.zeros(240).data.normal_(0, 0.1)
 
         return pixel_feat, ground_truth_class
 
@@ -114,7 +109,6 @@ if __name__ == "__main__":
     sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)
 
     train_loader = DataLoader(training_set, batch_size=65536, sampler=sampler)
-    # train_loader = DataLoader(training_set, batch_size=65536, shuffle=True)
     train_iter = iter(train_loader)
     print("Loading batch...")
     batch1 = train_iter.__next__()

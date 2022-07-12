@@ -23,7 +23,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 

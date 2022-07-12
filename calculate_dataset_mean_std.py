@@ -3,14 +3,14 @@ import math
 from welford import Welford
 import numpy as np
 
-data_path = "/data/syed/hdgan/TMA_4096_snapshot2600/pixel_5block_features_dataset"
+data_path = "/data/syed/hdgan/TMA_4096_snapshot2600/pixel_4_block_features_dataset"
 all_files = os.listdir(data_path)
 all_files = [file for file in all_files if ".npy" in file]
 
-dataset_means = np.zeros((496,), dtype=np.float64)
-dataset_stds = np.zeros((496,), dtype=np.float64)
+dataset_means = np.zeros((240,), dtype=np.float64)
+dataset_stds = np.zeros((240,), dtype=np.float64)
 total_size = 0.
-first_moment_total = np.zeros((496,), dtype=np.float64)
+first_moment_total = np.zeros((240,), dtype=np.float64)
 # second_moment_total = np.zeros((496,), dtype=np.float64)
 
 w = Welford()
@@ -38,8 +38,8 @@ print(dataset_means.shape)
 print(dataset_means.dtype)
 print(dataset_stds.shape)
 print(dataset_stds.dtype)
-np.save("./dataset_means.npy", dataset_means)
-np.save("./dataset_stds.npy", dataset_stds)
+np.save("./4_block_dataset_means.npy", dataset_means)
+np.save("./4_block_dataset_stds.npy", dataset_stds)
 
 
 """
