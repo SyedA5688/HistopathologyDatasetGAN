@@ -37,12 +37,14 @@ class PixelFeaturesDataset(Dataset):
                 For this dataset, specifying num_workers >= 4 and pin_memory=True is a good idea, since many
                 batches can fit into memory.
         """
+        #--- Assertions for dataset arguments ---#
         assert split in ["train", "val", "test"]
         assert val_fold in [0, 1, 2, 3, 4], "Unknown validation fold specified, must be 0-4"
         print("Creating dataset...")
         if split == "val":
             print("Val fold is", val_fold)
 
+        # --- Set indices of images for train/val/test ---#
         train_val_split = 16
         if split == "train":
             img_name_idxs = tma_4096_image_idxs[0:train_val_split]
@@ -57,18 +59,23 @@ class PixelFeaturesDataset(Dataset):
             img_name_idxs = [tma_4096_image_idxs[i] for i in idxs]
             self.img_name_idxs = img_name_idxs
 
+        # --- Set class attributes for later use ---#
         self.img_pixel_feat_len = 4096*4096
         self.split = split
         self.total_size = 0
-        self.pixel_feat_mean = np.load(os.path.join(data_path, "4_block_dataset_means.npy"))
-        self.pixel_feat_stds = np.load(os.path.join(data_path, "4_block_dataset_stds.npy"))
+        self.pixel_feat_mean = np.load(os.path.join(data_path, "3_block_dataset_means.npy"))
+        self.pixel_feat_stds = np.load(os.path.join(data_path, "3_block_dataset_stds.npy"))
         self.class_samp_weights = {0: 0.05, 1: 0.019, 2: 0.08, 3: 0.97, 4: 0.28}
 
+        # --- Load StyleGAN2 saved latent features ---#
         self.features = {}
         for idx, image_idx in enumerate(img_name_idxs):
-            pixel_data = np.load(os.path.join(data_path, "pixel_4_block_features_dataset", "pixel_level_feat_img_{}.npy".format(image_idx)), mmap_mode='r')  # Shape (nsamples, nfeatures)
+            pixel_data = np.load(
+                os.path.join(data_path, "pixel_3_block_features_dataset", "pixel_level_feat_img_{}.npy".format(image_idx)), mmap_mode='r'
+            )  # Shape (nsamples, nfeatures)
             self.features[idx] = pixel_data
 
+        # --- Load images, pixel values will be ground truth for segmentation ---#
         self.ground_truth = {}
         for idx, image_idx in enumerate(img_name_idxs):
             print("Processing image", image_idx)
@@ -77,11 +84,11 @@ class PixelFeaturesDataset(Dataset):
             image_pixel_label_list = []
             for row in range(h):
                 for col in range(w):
-                    image_pixel_label_list.append(mask[row, col])  # Append 1 by 1, ensure correct order
+                    image_pixel_label_list.append(mask[row, col])
 
             image_pixel_label_list = np.array(image_pixel_label_list)
             self.total_size += len(image_pixel_label_list)
-            self.ground_truth[idx] = image_pixel_label_list  # match pixel features
+            self.ground_truth[idx] = image_pixel_label_list
         print("Dataset creation completed.")
 
     def __len__(self):
@@ -96,14 +103,14 @@ class PixelFeaturesDataset(Dataset):
         pixel_feat = (pixel_feat - self.pixel_feat_mean) / self.pixel_feat_stds
 
         if self.split == "train" and random.random() < 0.5:
-            # std min for pixel dataset is around 0.01
-            pixel_feat += np.random.normal(loc=0., scale=0.1, size=(240,)).astype(np.float32)  # torch.zeros(240).data.normal_(0, 0.1)
+            pixel_feat += np.random.normal(loc=0., scale=0.1, size=(112,)).astype(np.float32)
+            # 496 for 5-block dataset, 240 for 4-block dataset, 112 for 3-block dataset
 
         return pixel_feat, ground_truth_class
 
 
 if __name__ == "__main__":
-    training_set = PixelFeaturesDataset(data_path="/data/syed/hdgan/TMA_4096_snapshot2600/", split="train")
+    training_set = PixelFeaturesDataset(data_path="/path/to/data/dir/", split="train")
     sample_weights = [training_set.class_samp_weights[training_set.ground_truth[idx // training_set.img_pixel_feat_len][
         idx % training_set.img_pixel_feat_len]] for idx in range(len(training_set))]
     sampler = WeightedRandomSampler(torch.DoubleTensor(sample_weights), len(training_set), replacement=True)

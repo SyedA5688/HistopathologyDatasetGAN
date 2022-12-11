@@ -14,7 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader, WeightedRandomSampler
 import numpy as np
 
-from utils.utils import multi_acc, oht_to_scalar, dice_coefficient  # , EarlyStopping
+from utils.utils import multi_acc, oht_to_scalar, dice_coefficient
 from utils.data_util import tma_4096_crop_class_printname
 from networks.pixel_classifier import PixelClassifier
 from pixel_features_dataset import PixelFeaturesDataset
@@ -22,9 +22,7 @@ from pixel_features_dataset import PixelFeaturesDataset
 import warnings
 warnings.filterwarnings("ignore")
 
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -54,15 +52,12 @@ class CustomWeightedRandomSampler(WeightedRandomSampler):
                                        replace=self.replacement)
         rand_tensor = torch.from_numpy(rand_tensor)
         return iter(rand_tensor.tolist())
-# ToDo: Try training on other 4 folds
 
 
 def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest_val_acc, highest_val_dice, epoch_num):
     with torch.no_grad():
         model.eval()
-        ################################
-        # Evaluate on validation dataset
-        ################################
+        #--- Evaluate on validation dataset ---#
         val_total_loss = 0.
         summed_acc = 0.
 
@@ -80,7 +75,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
             acc = multi_acc(pred_logits, ground_truth)
             pixel_preds = oht_to_scalar(pred_logits)
 
-            # Accumulating predictions for confusion matrix
+            #--- Accumulating predictions for confusion matrix ---#
             for t, p in zip(ground_truth.view(-1), pixel_preds.view(-1)):
                 confusion_matrix[t.long(), p.long()] += 1
 
@@ -100,9 +95,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
                 ground_truth_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
                 predicted_mask = torch.zeros((args["featuremaps_dim"][0], args["featuremaps_dim"][1]))
 
-        ############################
-        # Display validation results
-        ############################
+        #--- Display validation results ---#
         val_avg_loss = val_total_loss / (batch_idx + 1)
         val_avg_acc = summed_acc / (batch_idx + 1)
         val_avg_dice_coeff = mean(dice_scores)
@@ -122,7 +115,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
 
         log_string('Validation: Avg Dice Coefficient: {:.4f}, Avg Batch Acc: {:.4f}, Validation Avg Batch Loss: {:.8f} {}'.format(float(val_avg_dice_coeff), float(val_avg_acc), float(val_avg_loss), improved_str) + "\n")
 
-        # Print out class-wise and total pixel-level accuracy
+        #--- Print out class-wise and total pixel-level accuracy ---#
         log_string("Validation Class-wise Accuracies for Single Model:")
         class_accuracies = []
         for i in range(len(tma_4096_crop_class_printname)):
@@ -140,10 +133,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
         log_string('\n'.join(['\t'.join(['{:12.1f}'.format(num.item()) for num in row]) for row in confusion_matrix]))
         log_string("\n")
 
-        ####################################
-        # Save model if there is improvement
-        ####################################
-        # if improved:
+        #--- Save model if there is improvement ---#
         save_name = "best_model_{}.pth".format(model_num) if epoch_num is None else "best_model_{}_ep{}.pth".format(model_num, epoch_num)
         torch.save({
             'model_state_dict': model.state_dict(),
@@ -154,7 +144,7 @@ def validation(model, model_num, val_loader, criterion, lowest_val_loss, highest
 
 
 def train():
-    # Model loop
+    #--- Model loop if training multiple pixel-level classifiers ---#
     for model_num in range(args["model_num"]):
         log_string("Training classifier #" + str(model_num) + "\n")
         gc.collect()
@@ -182,12 +172,11 @@ def train():
         # train_loader = DataLoader(training_set, batch_size=args['batch_size'], shuffle=True, pin_memory=True)
         val_loader = DataLoader(validation_set, batch_size=args['featuremaps_dim'][1], shuffle=False, num_workers=32, pin_memory=True)
 
-        # Training loop
+        #--- Training loop ---#
         lowest_validation_loss = 10000000.
         lowest_train_loss = 10000000.
         highest_val_acc = 0.
         highest_val_dice = 0.
-        # early_stopper = EarlyStopping(patience=args["early_stopping_patience"], min_delta=0.005)
 
         for epoch in range(args["epochs"]):
             log_string("Epoch " + str(epoch) + " starting...")
@@ -196,22 +185,23 @@ def train():
             summed_acc = 0.
 
             for batch_idx, (data, ground_truth) in enumerate(train_loader):
-                # Move data and ground truth labels to cuda device, change ground truth labels to dtype long (integers)
-                # data is [b, 6128], ground_truth is [64,]
+                #--- Move data and ground truth labels to cuda device ---#
                 data, ground_truth = data.float().to(device), ground_truth.long().to(device)
                 optimizer.zero_grad()
 
-                pred_logits = classifier(data)  # pred shape [b, 7]  # 7 class output probabilities
+                #--- Forward pass ---#
+                pred_logits = classifier(data)
                 loss = criterion(pred_logits, ground_truth)
                 acc = multi_acc(pred_logits, ground_truth)
 
                 total_train_loss += loss.item()
                 summed_acc += acc.item()
 
+                #--- Backward pass ---#
                 loss.backward()
                 optimizer.step()
 
-            # Calculate average epoch loss for training set, log losses
+            #--- Calculate average epoch loss for training set, log losses ---#
             train_avg_loss = total_train_loss / len(train_loader)
             train_avg_acc = summed_acc / len(train_loader)
             tf_writer.add_scalar("Loss/train", train_avg_loss, epoch)
@@ -226,27 +216,18 @@ def train():
             log_string('Epoch {:03d}: - Train Avg Batch Accuracy: {:.3f}, Train Avg Batch Loss: {:.8f} {}'.format(
                 epoch, train_avg_acc, train_avg_loss, train_improved_str))
 
-            # Run validation
+            #--- Eval ---#
             val_avg_loss, lowest_validation_loss, highest_val_acc, highest_val_dice, val_improved = validation(classifier, model_num, val_loader, criterion, lowest_validation_loss, highest_val_acc, highest_val_dice, epoch)
-
-            # Check for early stopping criteria
-            # early_stopper(val_avg_loss)
-            # if val_improved:
-            #     early_stopper.counter = 0
-            # if early_stopper.early_stop:
-            #     break
 
         log_string("Done training classifier " + str(model_num) + "\n\n" + "---" * 40)
 
 
 def main():
-    # Log training configuration to training log
     log_string("Training configuration:")
     for key in args:
         log_string(key + ": " + str(args[key]))
     log_string("\n")
 
-    # Train-validation loop, test once at end
     start_time = time.time()
     try:
         train()
@@ -259,17 +240,18 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
+    parser.add_argument('--experiment', type=str, default="/path/tp/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
     opts = parser.parse_args()
     args = json.load(open(opts.experiment, 'r'))
 
-    # Create experiment training directory
+    #--- Create experiment training directories ---#
     SAVE_PATH = args['experiment_dir']
     if not os.path.exists(SAVE_PATH):
         os.mkdir(SAVE_PATH)
         os.mkdir(os.path.join(SAVE_PATH, "python_file_saves"))
         print('Experiment folder created at: %s' % SAVE_PATH)
 
+    # --- Save training scripts and dataset/model definitions ---#
     os.system('cp %s %s' % (opts.experiment, SAVE_PATH))
     os.system("cp train_pixel_classifier.py {}".format(os.path.join(SAVE_PATH, "python_file_saves")))
     os.system("cp networks/pixel_classifier.py {}".format(os.path.join(SAVE_PATH, "python_file_saves")))

@@ -1,7 +1,6 @@
 import os
 import json
 import argparse
-import functools
 
 import torch
 import numpy as np
@@ -14,7 +13,6 @@ np.random.seed(0)
 torch.manual_seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-# device = 'cpu'
 
 
 def generate_data(num_sample):
@@ -23,15 +21,16 @@ def generate_data(num_sample):
         print('Experiment folder created at: %s' % args["dataset_save_dir"])
 
     g_all, avg_latent = load_stylegan2_ada(args)
-    # Line for inference on CPU
+    # Uncomment this line if doing inference on CPU
     # g_all.forward = functools.partial(g_all.forward, force_fp32=True)
     # g_all.synthesis.forward = functools.partial(g_all.synthesis.forward, force_fp32=True)
     upsamplers = get_upsamplers(args)
 
-    # Save avg_latent
+    #--- Save avg_latent ---#
     mean_latent_save_path = os.path.join(args["dataset_save_dir"], "avg_latent_stylegan2.npy")
     np.save(mean_latent_save_path, avg_latent[0].detach().cpu().numpy())
 
+    # --- Look to sample latents, generate image, and save both latent and corresponding image ---#
     with torch.no_grad():
         latent_cache = []
         print("Num_samples to generate: ", num_sample)
@@ -73,7 +72,7 @@ def generate_data(num_sample):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--experiment', type=str, default="/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
+    parser.add_argument('--experiment', type=str, default="/path/to/Histopathology_Dataset_GAN/experiments/TMA_4096_tile.json")
     parser.add_argument('--num_sample', type=int,  default=500)
 
     opts = parser.parse_args()

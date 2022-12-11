@@ -1,12 +1,12 @@
 {
   "average_latent": "",
   "batch_size": 65536,
-  "dataset_save_dir": "/data/syed/hdgan/TMA_4096_snapshot2600/",
+  "dataset_save_dir": "/path/to/data/directory/",
   "early_stopping_patience": 15,
   "epochs": 25,
-  "experiment_desc": "5-classes, 4block pixel features dataset, SGD optimizer + momentum, learning rate 0.0001, label smoothening in CrossEntropyLoss 0.1, balanced batches, normalizing features in dataloader, 16 image training set (full crop), dropout 0.3, small gaussian noise data augmentation drawn from N(0, 0.1). Val fold 1.",
-  "experiment_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/TMA_4096-0020",
-  "featuremaps_dim": [4096, 4096, 204],
+  "experiment_desc": "Experiment Description",
+  "experiment_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/Histopathology_Dataset_GAN/training-runs/experiment_dir_name",
+  "featuremaps_dim": [4096, 4096, 112],
   "G_kwargs": {
     "class_name": "networks.stylegan2_ada.Generator",
     "z_dim": 512,
@@ -24,9 +24,9 @@
   "model_num": 1,
   "num_classes": 5,
   "pixel_classifier_lr": 0.0001,
-  "qupath_annotation_mask_dir": "/home/cougarnet.uh.edu/srizvi7/Desktop/TMAFakeImageSegmentationV2/mask/",
+  "qupath_annotation_mask_dir": "/path/to/QuPathAnnotationProject/mask/",
   "resolution": 4096,
-  "stylegan_checkpoint": "/data/syed/stylegan2-ada-training/00003-tile-mirror-auto4-color/network-snapshot-002600.pkl",
+  "stylegan_checkpoint": "path/to/stylegan2-network-snapshot-002600.pkl",
   "truncation": 0.7,
   "upsample_mode":"bilinear",
   "val_fold": 0

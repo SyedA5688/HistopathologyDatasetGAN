@@ -9,22 +9,20 @@ import dnnlib
 from networks import legacy
 from utils.utils import Interpolate
 
-
 np.random.seed(0)
 torch.manual_seed(0)
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-# device = 'cpu'
 
 
 def load_stylegan2_ada(args):
-    # Define dictionary with StyleGan2ADA Parameters
+    #-- Define dictionary with StyleGan2ADA Parameters --#
     g_kwargs = args['G_kwargs']
     common_kwargs = dict(c_dim=0, img_resolution=args['resolution'], img_channels=3)
     g_all = dnnlib.util.construct_class_by_name(**g_kwargs, **common_kwargs).train().requires_grad_(False).to(device)
     g_all.eval()
 
-    # Load saved pickle file
+    #-- Load saved pickle file --#
     with dnnlib.util.open_url(args['stylegan_checkpoint']) as f:
         g_checkpoint = legacy.load_network_pkl(f)['G_ema'].to(device)
         misc.copy_params_and_buffers(g_checkpoint, g_all, require_all=False)
